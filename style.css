@@ -1,0 +1,38 @@
+/* Custom Card Styles */
+.card-active {
+    border-left: 8px solid #10b981;
+    border-top: 1px solid #e5e7eb;
+}
+
+.card-inactive {
+    border-left: 8px solid #ef4444;
+    border-top: 1px solid #e5e7eb;
+}
+
+/* Stat Cards */
+.stat-card {
+    background-color: white;
+    padding: 1.5rem;
+    border-radius: 0.75rem;
+    box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+    border: 1px solid #e2e8f0;
+}
+
+.stat-label {
+    color: #94a3b8;
+    font-size: 0.75rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.025em;
+}
+
+.stat-value {
+    font-size: 1.875rem;
+    line-height: 2.25rem;
+    font-weight: 900;
+}
+
+/* Smooth Transitions */
+.transition-all {
+    transition: all 0.3s ease-in-out;
+}
