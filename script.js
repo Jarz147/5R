@@ -427,6 +427,10 @@ function renderScheduleDashboard() {
     const year = parseInt(document.getElementById('scheduleYear')?.value || new Date().getFullYear(), 10);
     const month = parseInt(document.getElementById('scheduleMonth')?.value ?? new Date().getMonth(), 10);
     const daysInMonth = new Date(year, month + 1, 0).getDate();
+    const now = new Date();
+    const todayYear = now.getFullYear();
+    const todayMonth = now.getMonth();
+    const todayDay = now.getDate();
     const tbody = document.getElementById('scheduleTableBody');
     tbody.innerHTML = '';
     const shifts = [
@@ -454,9 +458,11 @@ function renderScheduleDashboard() {
                 planCells += `<td class="p-0.5 text-center border-r border-slate-100 ${off ? 'bg-red-100 text-red-400' : ''}">${off ? '' : letter}</td>`;
                 const key = `${area.id}_${day}`;
                 const done = scheduleScanMap[key];
+                const isPastOrToday = (year < todayYear) || (year === todayYear && month < todayMonth) || (year === todayYear && month === todayMonth && day <= todayDay);
                 if (off) actualCells += `<td class="p-0.5 text-center border-r border-slate-100 bg-red-100 text-red-500 font-bold">—</td>`;
                 else if (done) actualCells += `<td class="p-0.5 text-center border-r border-slate-100 text-green-600 font-bold" title="Sudah 5R">✓</td>`;
-                else actualCells += `<td class="p-0.5 text-center border-r border-slate-100 text-red-500 font-bold" title="Belum 5R">✕</td>`;
+                else if (isPastOrToday) actualCells += `<td class="p-0.5 text-center border-r border-slate-100 text-red-500 font-bold" title="Belum 5R">✕</td>`;
+                else actualCells += `<td class="p-0.5 text-center border-r border-slate-100 text-slate-300">—</td>`;
             }
             planRow.innerHTML = planCells;
             actualRow.innerHTML = actualCells;
