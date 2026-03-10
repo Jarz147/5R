@@ -205,12 +205,15 @@ function renderUI() {
     const tableBody = document.getElementById('activityTable');
     tableBody.innerHTML = monthlyHistory.map(log => {
         const photoLink = log.photo_url ? `<a href="${escapeHtml(log.photo_url)}" target="_blank" rel="noopener" class="text-indigo-600 hover:underline text-[10px] font-black">📷 Foto</a>` : '';
+        const isDone = !!log.photo_url;
+        const statusLabel = isDone ? 'Sudah 5R' : 'Belum 5R';
+        const statusClass = isDone ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700';
         return `
         <tr class="hover:bg-slate-50 transition-colors">
             <td class="p-4 font-mono text-[11px] text-slate-500">${new Date(log.created_at).toLocaleString('id-ID')}</td>
             <td class="p-4 font-black text-slate-800 text-sm italic">${escapeHtml(log.staff_name)}</td>
             <td class="p-4 text-xs font-bold text-slate-500">${escapeHtml(log.area_name)}</td>
-            <td class="p-4"><span class="bg-green-100 text-green-700 px-3 py-1 rounded-full text-[10px] font-black italic">✓ ACTUAL</span> ${photoLink}</td>
+            <td class="p-4"><span class="${statusClass} px-3 py-1 rounded-full text-[10px] font-black italic">${statusLabel}</span> ${photoLink}</td>
         </tr>
     `}).join('') || '<tr><td colspan="4" class="p-10 text-center text-slate-300 font-bold italic uppercase">Belum ada aktivitas hari ini</td></tr>';
 }
@@ -453,7 +456,7 @@ function renderScheduleDashboard() {
                 const done = scheduleScanMap[key];
                 if (off) actualCells += `<td class="p-0.5 text-center border-r border-slate-100 bg-red-100 text-red-500 font-bold">—</td>`;
                 else if (done) actualCells += `<td class="p-0.5 text-center border-r border-slate-100 text-green-600 font-bold" title="Sudah 5R">✓</td>`;
-                else actualCells += `<td class="p-0.5 text-center border-r border-slate-100 text-slate-300">—</td>`;
+                else actualCells += `<td class="p-0.5 text-center border-r border-slate-100 text-red-500 font-bold" title="Belum 5R">✕</td>`;
             }
             planRow.innerHTML = planCells;
             actualRow.innerHTML = actualCells;
