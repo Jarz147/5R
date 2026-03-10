@@ -3,61 +3,121 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Dashboard Piket | Monitoring Real-time</title>
+    <title>Dashboard 5R - Maintenance TMC</title>
     <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
     <link rel="stylesheet" href="style.css">
-    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 </head>
-<body class="bg-slate-50 font-sans text-slate-900">
+<body class="bg-slate-100 min-h-screen font-sans">
 
-    <div class="container mx-auto px-4 py-8 max-w-6xl">
-        <header class="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 bg-white p-6 rounded-2xl shadow-sm border border-slate-200">
+    <header class="bg-white shadow-sm border-b sticky top-0 z-40">
+        <div class="max-w-7xl mx-auto px-6 py-4 flex flex-col md:flex-row justify-between items-center gap-4">
             <div>
-                <h1 class="text-2xl font-extrabold tracking-tight text-slate-800 uppercase">Monitoring Piket Harian</h1>
-                <p id="currentDate" class="text-slate-500 font-medium"></p>
+                <h1 class="text-2xl font-black text-slate-800 tracking-tight">DAILY MONITORING 5R</h1>
+                <p id="currentDate" class="text-slate-500 font-bold text-sm uppercase tracking-wider italic"></p>
             </div>
-            <div class="flex gap-3 mt-4 md:mt-0">
-                <button onclick="exportCSV()" class="bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2 rounded-lg font-bold text-sm shadow-sm transition">
-                    LAPORAN BULANAN
+            <div class="flex flex-wrap gap-3">
+                <button onclick="openSettingsModal()" class="bg-slate-600 hover:bg-slate-700 text-white px-5 py-2.5 rounded-xl font-black text-xs shadow-lg transition-all active:scale-95">
+                    PENGATURAN
+                </button>
+                <button onclick="openQRModal()" class="bg-indigo-600 hover:bg-indigo-700 text-white px-5 py-2.5 rounded-xl font-black text-xs shadow-lg transition-all active:scale-95">
+                    GENERATE BARCODE
+                </button>
+                <button onclick="exportCSV()" class="bg-emerald-600 hover:bg-emerald-700 text-white px-5 py-2.5 rounded-xl font-black text-xs shadow-lg transition-all active:scale-95">
+                    LAPORAN BULANAN (CSV)
                 </button>
             </div>
-        </header>
+        </div>
+    </header>
 
-        <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-            <div class="stat-card">
-                <div class="stat-label">Progress Hari Ini</div>
-                <div class="stat-value text-blue-600" id="overallProgress">0/10</div>
+    <main class="max-w-7xl mx-auto px-6 py-8">
+        <div class="mb-8 bg-white p-6 rounded-3xl shadow-sm border flex justify-between items-center">
+            <div>
+                <p class="text-slate-400 font-black text-xs uppercase mb-1">Total Progress Hari Ini</p>
+                <h2 id="overallProgress" class="text-4xl font-black text-slate-800">0/13</h2>
             </div>
-            <div class="stat-card">
-                <div class="stat-label">Status Database</div>
-                <div class="stat-value text-green-500" id="dbStatus">ONLINE</div>
-            </div>
-            <div class="stat-card text-center md:text-left">
-                <div class="stat-label">Total Area</div>
-                <div class="stat-value text-slate-700">10 Lokasi</div>
+            <div class="text-right">
+                <span class="bg-slate-100 text-slate-600 px-4 py-2 rounded-full font-black text-xs uppercase italic">Line: Maintenance & PE</span>
             </div>
         </div>
 
-        <div id="picketGrid" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
+        <div id="picketGrid" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
             </div>
 
-        <div class="mt-10 bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
-            <div class="p-6 border-b border-slate-100 flex justify-between items-center">
-                <h2 class="text-lg font-bold text-slate-800">Riwayat Aktivitas Bulanan</h2>
+        <div class="mt-12 bg-white rounded-3xl shadow-sm border overflow-hidden">
+            <div class="p-6 border-b bg-slate-50">
+                <h2 class="text-lg font-black text-slate-800 italic uppercase">Log Aktivitas Terbaru</h2>
             </div>
             <div class="overflow-x-auto">
                 <table class="w-full text-left border-collapse">
                     <thead class="bg-slate-50">
                         <tr>
-                            <th class="p-4 text-xs font-bold text-slate-500 uppercase">Waktu/Tanggal</th>
-                            <th class="p-4 text-xs font-bold text-slate-500 uppercase">Area Lokasi</th>
-                            <th class="p-4 text-xs font-bold text-slate-500 uppercase">Petugas</th>
-                            <th class="p-4 text-xs font-bold text-slate-500 uppercase">Status</th>
+                            <th class="p-4 text-xs font-black text-slate-400 uppercase tracking-widest">Waktu Scan</th>
+                            <th class="p-4 text-xs font-black text-slate-400 uppercase tracking-widest">Nama Member</th>
+                            <th class="p-4 text-xs font-black text-slate-400 uppercase tracking-widest">Area Kerja</th>
+                            <th class="p-4 text-xs font-black text-slate-400 uppercase tracking-widest">Status</th>
                         </tr>
                     </thead>
-                    <tbody id="activityTable" class="text-sm text-slate-600 divide-y divide-slate-100">
+                    <tbody id="activityTable" class="divide-y text-slate-700">
                         </tbody>
                 </table>
+            </div>
+        </div>
+    </main>
+
+    <div id="qrModal" class="fixed inset-0 bg-slate-900/80 hidden z-50 flex items-center justify-center p-4 backdrop-blur-sm">
+        <div class="bg-white rounded-[2.5rem] max-w-5xl w-full max-h-[90vh] overflow-y-auto p-8 shadow-2xl">
+            <div class="flex justify-between items-center mb-8 border-b pb-6">
+                <div>
+                    <h2 class="text-2xl font-black text-slate-800">QR CODE MEMBER 5R</h2>
+                    <p class="text-slate-400 text-sm font-bold uppercase italic">Tempel barcode ini di masing-masing area kerja</p>
+                </div>
+                <button onclick="closeQRModal()" class="bg-slate-100 hover:bg-red-100 text-slate-400 hover:text-red-500 w-12 h-12 rounded-full flex items-center justify-center text-3xl transition-all">&times;</button>
+            </div>
+            
+            <div id="qrPrintArea" class="grid grid-cols-2 md:grid-cols-4 gap-6 p-2">
+                </div>
+
+            <div class="mt-10 flex justify-end gap-4 border-t pt-8 no-print">
+                <button onclick="window.print()" class="bg-slate-800 text-white px-8 py-3 rounded-2xl font-black text-sm hover:bg-black transition-all">CETAK SEKARANG</button>
+                <button onclick="closeQRModal()" class="bg-slate-100 text-slate-500 px-8 py-3 rounded-2xl font-black text-sm hover:bg-slate-200 transition-all">TUTUP</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal Pengaturan Nama & Zona -->
+    <div id="settingsModal" class="fixed inset-0 bg-slate-900/80 hidden z-50 flex items-center justify-center p-4 backdrop-blur-sm">
+        <div class="bg-white rounded-[2.5rem] max-w-4xl w-full max-h-[90vh] overflow-hidden flex flex-col shadow-2xl">
+            <div class="p-6 border-b bg-slate-50 flex justify-between items-center">
+                <div>
+                    <h2 class="text-xl font-black text-slate-800">Pengaturan Nama & Zona</h2>
+                    <p class="text-slate-500 text-sm font-bold">Ubah nama PIC dan nama area/zona</p>
+                </div>
+                <button onclick="closeSettingsModal()" class="bg-slate-200 hover:bg-slate-300 w-10 h-10 rounded-full flex items-center justify-center text-xl text-slate-600 transition-all">&times;</button>
+            </div>
+            <div class="overflow-y-auto p-6 flex-1">
+                <table class="w-full text-left border-collapse">
+                    <thead>
+                        <tr class="border-b border-slate-200">
+                            <th class="pb-3 text-xs font-black text-slate-400 uppercase">No</th>
+                            <th class="pb-3 text-xs font-black text-slate-400 uppercase">Nama PIC</th>
+                            <th class="pb-3 text-xs font-black text-slate-400 uppercase">Nama Area / Zona</th>
+                            <th class="pb-3 text-xs font-black text-slate-400 uppercase">Shift</th>
+                            <th class="pb-3 text-xs font-black text-slate-400 uppercase w-20">Hapus</th>
+                        </tr>
+                    </thead>
+                    <tbody id="settingsTableBody">
+                    </tbody>
+                </table>
+                <button type="button" onclick="addSettingsRow()" class="mt-4 w-full py-3 border-2 border-dashed border-slate-300 rounded-xl text-slate-500 font-black text-sm hover:bg-slate-50 hover:border-slate-400 transition-all">
+                    + Tambah Baris
+                </button>
+            </div>
+            <div class="p-6 border-t bg-slate-50 flex flex-wrap gap-3 justify-end">
+                <button type="button" onclick="resetSettingsToDefault()" class="px-5 py-2.5 rounded-xl font-black text-xs bg-slate-200 text-slate-600 hover:bg-slate-300 transition-all">Reset ke Default</button>
+                <button type="button" onclick="saveSettings()" class="px-6 py-2.5 rounded-xl font-black text-xs bg-emerald-600 text-white hover:bg-emerald-700 transition-all">Simpan</button>
+                <button type="button" onclick="closeSettingsModal()" class="px-5 py-2.5 rounded-xl font-black text-xs bg-slate-800 text-white hover:bg-slate-900 transition-all">Tutup</button>
             </div>
         </div>
     </div>
