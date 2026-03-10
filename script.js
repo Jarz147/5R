@@ -42,6 +42,9 @@ function saveAreasToStorage() {
 
 let dailyStatus = {};
 let monthlyHistory = [];
+/** Log bulanan untuk dashboard jadwal (area_id -> set of day 1-31) */
+let scheduleMonthLogs = []; // { area_id, created_at }[]
+let scheduleScanMap = {};   // key: "areaId_day" -> true
 
 /** Mengambil data dari Supabase */
 async function fetchData() {
@@ -346,6 +349,118 @@ function checkAutoScan() {
             openScanPhotoModal(area.id, area.name, area.staff);
         }
     }
+}
+
+// --- DASHBOARD JADWAL 5R (template schedule) ---
+const MONTH_NAMES = ['Januari','Februari','Maret','April','Mei','Juni','Juli','Agustus','September','Oktober','November','Desember'];
+
+function showScheduleDashboard() {
+    document.getElementById('viewMonitoring').classList.add('hidden');
+    document.getElementById('viewDashboard').classList.remove('hidden');
+    document.getElementById('btnShowMonitoring').classList.remove('hidden');
+    const now = new Date();
+    const monthSelect = document.getElementById('scheduleMonth');
+    const yearSelect = document.getElementById('scheduleYear');
+    if (!monthSelect.options.length) {
+        MONTH_NAMES.forEach((name, i) => {
+            const opt = document.createElement('option');
+            opt.value = i;
+            opt.textContent = name;
+            if (i === now.getMonth()) opt.selected = true;
+            monthSelect.appendChild(opt);
+        });
+        for (let y = now.getFullYear(); y >= now.getFullYear() - 2; y--) {
+            const opt = document.createElement('option');
+            opt.value = y;
+            opt.textContent = y;
+            if (y === now.getFullYear()) opt.selected = true;
+            yearSelect.appendChild(opt);
+        }
+    }
+    fetchScheduleMonth().then(() => renderScheduleDashboard());
+}
+
+function showMonitoring() {
+    document.getElementById('viewDashboard').classList.add('hidden');
+    document.getElementById('viewMonitoring').classList.remove('hidden');
+    document.getElementById('btnShowMonitoring').classList.add('hidden');
+}
+
+/** Ambil log satu bulan untuk dashboard */
+async function fetchScheduleMonth() {
+    const year = parseInt(document.getElementById('scheduleYear')?.value || new Date().getFullYear(), 10);
+    const month = parseInt(document.getElementById('scheduleMonth')?.value ?? new Date().getMonth(), 10);
+    const start = new Date(year, month, 1).toISOString();
+    const end = new Date(year, month + 1, 0, 23, 59, 59).toISOString();
+    try {
+        const { data } = await _supabase.from('piket_logs').select('area_id, created_at').gte('created_at', start).lte('created_at', end);
+        scheduleMonthLogs = data || [];
+        scheduleScanMap = {};
+        scheduleMonthLogs.forEach(log => {
+            const d = new Date(log.created_at).getDate();
+            const key = `${log.area_id}_${d}`;
+            scheduleScanMap[key] = true;
+        });
+    } catch (e) {
+        scheduleMonthLogs = [];
+        scheduleScanMap = {};
+    }
+}
+
+function isOffDay(year, month, day) {
+    const d = new Date(year, month, day);
+    const dow = d.getDay();
+    return dow === 0 || dow === 6;
+}
+
+/** Ambil huruf area dari "Area H" -> "H", "Area -" -> "-" */
+function getAreaLetter(name) {
+    if (!name) return '-';
+    const m = String(name).match(/Area\s*([A-Z\-])/i) || String(name).match(/([A-Z])$/i);
+    return m ? m[1].toUpperCase() : (name.charAt(0) || '-');
+}
+
+function renderScheduleDashboard() {
+    const year = parseInt(document.getElementById('scheduleYear')?.value || new Date().getFullYear(), 10);
+    const month = parseInt(document.getElementById('scheduleMonth')?.value ?? new Date().getMonth(), 10);
+    const daysInMonth = new Date(year, month + 1, 0).getDate();
+    const tbody = document.getElementById('scheduleTableBody');
+    tbody.innerHTML = '';
+    const shifts = [
+        { name: 'SHIFT BIRU', key: 'BIRU', bg: 'bg-blue-100', border: 'border-blue-300' },
+        { name: 'SHIFT HIJAU', key: 'HIJAU', bg: 'bg-green-100', border: 'border-green-300' },
+        { name: 'SHIFT MERAH / NON SHIFT', key: 'MERAH', bg: 'bg-red-100', border: 'border-red-300' }
+    ];
+    shifts.forEach(shift => {
+        const members = areas.filter(a => a.shift === shift.key);
+        if (!members.length) return;
+        const headerRow = document.createElement('tr');
+        headerRow.className = shift.bg + ' border-b-2 ' + shift.border;
+        headerRow.innerHTML = `<td colspan="${1 + 31}" class="p-2 font-black text-slate-700 uppercase">${shift.name}</td>`;
+        tbody.appendChild(headerRow);
+        members.forEach(area => {
+            const letter = getAreaLetter(area.name);
+            const planRow = document.createElement('tr');
+            planRow.className = 'border-b border-slate-100 bg-slate-50';
+            let planCells = `<td class="p-1 border-r border-slate-200 sticky left-0 bg-slate-50 font-bold text-slate-500 text-xs">Plan</td>`;
+            const actualRow = document.createElement('tr');
+            actualRow.className = 'border-b border-slate-200';
+            let actualCells = `<td class="p-1 border-r border-slate-200 sticky left-0 bg-white font-bold text-slate-600">${escapeHtml(area.staff)}</td>`;
+            for (let day = 1; day <= 31; day++) {
+                const off = day > daysInMonth || isOffDay(year, month, day);
+                planCells += `<td class="p-0.5 text-center border-r border-slate-100 ${off ? 'bg-red-100 text-red-400' : ''}">${off ? '' : letter}</td>`;
+                const key = `${area.id}_${day}`;
+                const done = scheduleScanMap[key];
+                if (off) actualCells += `<td class="p-0.5 text-center border-r border-slate-100 bg-red-100 text-red-500 font-bold">—</td>`;
+                else if (done) actualCells += `<td class="p-0.5 text-center border-r border-slate-100 text-green-600 font-bold" title="Sudah 5R">✓</td>`;
+                else actualCells += `<td class="p-0.5 text-center border-r border-slate-100 text-slate-300">—</td>`;
+            }
+            planRow.innerHTML = planCells;
+            actualRow.innerHTML = actualCells;
+            tbody.appendChild(planRow);
+            tbody.appendChild(actualRow);
+        });
+    });
 }
 
 // Jalankan sistem
