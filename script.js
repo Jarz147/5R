@@ -125,7 +125,8 @@ async function submitScanWithPhoto() {
     try {
         const { error: uploadError } = await _supabase.storage.from(PIKET_STORAGE_BUCKET).upload(path, file, { upsert: true });
         if (uploadError) {
-            alert('Gagal upload foto. Buat bucket "' + PIKET_STORAGE_BUCKET + '" di Supabase Storage dan aktifkan public upload.');
+            const detail = uploadError.message ? '\n' + uploadError.message : '';
+            alert('Gagal upload foto.\n\nBucket: "' + PIKET_STORAGE_BUCKET + '"\nPath: ' + path + '\n\nPastikan bucket ada di Supabase Storage dan policy INSERT untuk anon mengizinkan folder public/*.jpg.' + detail);
             btn.disabled = false;
             btn.textContent = 'Submit 5R';
             return;
