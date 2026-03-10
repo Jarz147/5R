@@ -18,6 +18,12 @@
                 <p id="currentDate" class="text-slate-500 font-bold text-sm uppercase tracking-wider italic"></p>
             </div>
             <div class="flex flex-wrap gap-3">
+                <button onclick="showScheduleDashboard()" class="bg-blue-600 hover:bg-blue-700 text-white px-5 py-2.5 rounded-xl font-black text-xs shadow-lg transition-all active:scale-95">
+                    JADWAL 5R
+                </button>
+                <button onclick="showMonitoring()" id="btnShowMonitoring" class="hidden bg-slate-500 hover:bg-slate-600 text-white px-5 py-2.5 rounded-xl font-black text-xs shadow-lg transition-all active:scale-95">
+                    MONITORING
+                </button>
                 <button onclick="openSettingsModal()" class="bg-slate-600 hover:bg-slate-700 text-white px-5 py-2.5 rounded-xl font-black text-xs shadow-lg transition-all active:scale-95">
                     PENGATURAN
                 </button>
@@ -31,7 +37,8 @@
         </div>
     </header>
 
-    <main class="max-w-7xl mx-auto px-6 py-8">
+    <!-- View: Monitoring (default) -->
+    <main id="viewMonitoring" class="max-w-7xl mx-auto px-6 py-8">
         <div class="mb-8 bg-white p-6 rounded-3xl shadow-sm border flex justify-between items-center">
             <div>
                 <p class="text-slate-400 font-black text-xs uppercase mb-1">Total Progress Hari Ini</p>
@@ -63,6 +70,72 @@
                         </tbody>
                 </table>
             </div>
+        </div>
+    </main>
+
+    <!-- View: Dashboard Jadwal 5R (template schedule) -->
+    <main id="viewDashboard" class="hidden max-w-7xl mx-auto px-6 py-8">
+        <div class="mb-6 flex flex-wrap items-center justify-between gap-4">
+            <div>
+                <h2 class="text-2xl font-black text-slate-800">DAILY SCHEDULE 5R MEMBER</h2>
+                <p class="text-slate-500 font-bold text-sm uppercase tracking-wider">Line: MAINTENANCE & PRODUCT ENGINEERING</p>
+            </div>
+            <div class="flex items-center gap-3">
+                <label class="text-sm font-bold text-slate-600">Bulan:</label>
+                <select id="scheduleMonth" onchange="fetchScheduleMonth().then(function(){renderScheduleDashboard();})" class="border border-slate-300 rounded-lg px-3 py-2 font-bold text-sm">
+                    <!-- filled by JS -->
+                </select>
+                <select id="scheduleYear" onchange="fetchScheduleMonth().then(function(){renderScheduleDashboard();})" class="border border-slate-300 rounded-lg px-3 py-2 font-bold text-sm">
+                    <!-- filled by JS -->
+                </select>
+            </div>
+        </div>
+        <div class="bg-white rounded-3xl shadow-sm border overflow-hidden overflow-x-auto">
+            <table id="scheduleTable" class="w-full text-sm border-collapse min-w-[800px]">
+                <thead>
+                    <tr class="bg-slate-100">
+                        <th class="p-2 text-left font-black text-slate-600 uppercase border-b border-r border-slate-200 sticky left-0 bg-slate-100 z-10 min-w-[140px]">Nama Member</th>
+                        <th class="p-1 text-center font-black text-slate-500 uppercase border-b border-r border-slate-200 w-8">1</th>
+                        <th class="p-1 text-center font-black text-slate-500 uppercase border-b border-r border-slate-200 w-8">2</th>
+                        <th class="p-1 text-center font-black text-slate-500 uppercase border-b border-r border-slate-200 w-8">3</th>
+                        <th class="p-1 text-center font-black text-slate-500 uppercase border-b border-r border-slate-200 w-8">4</th>
+                        <th class="p-1 text-center font-black text-slate-500 uppercase border-b border-r border-slate-200 w-8">5</th>
+                        <th class="p-1 text-center font-black text-slate-500 uppercase border-b border-r border-slate-200 w-8">6</th>
+                        <th class="p-1 text-center font-black text-slate-500 uppercase border-b border-r border-slate-200 w-8">7</th>
+                        <th class="p-1 text-center font-black text-slate-500 uppercase border-b border-r border-slate-200 w-8">8</th>
+                        <th class="p-1 text-center font-black text-slate-500 uppercase border-b border-r border-slate-200 w-8">9</th>
+                        <th class="p-1 text-center font-black text-slate-500 uppercase border-b border-r border-slate-200 w-8">10</th>
+                        <th class="p-1 text-center font-black text-slate-500 uppercase border-b border-r border-slate-200 w-8">11</th>
+                        <th class="p-1 text-center font-black text-slate-500 uppercase border-b border-r border-slate-200 w-8">12</th>
+                        <th class="p-1 text-center font-black text-slate-500 uppercase border-b border-r border-slate-200 w-8">13</th>
+                        <th class="p-1 text-center font-black text-slate-500 uppercase border-b border-r border-slate-200 w-8">14</th>
+                        <th class="p-1 text-center font-black text-slate-500 uppercase border-b border-r border-slate-200 w-8">15</th>
+                        <th class="p-1 text-center font-black text-slate-500 uppercase border-b border-r border-slate-200 w-8">16</th>
+                        <th class="p-1 text-center font-black text-slate-500 uppercase border-b border-r border-slate-200 w-8">17</th>
+                        <th class="p-1 text-center font-black text-slate-500 uppercase border-b border-r border-slate-200 w-8">18</th>
+                        <th class="p-1 text-center font-black text-slate-500 uppercase border-b border-r border-slate-200 w-8">19</th>
+                        <th class="p-1 text-center font-black text-slate-500 uppercase border-b border-r border-slate-200 w-8">20</th>
+                        <th class="p-1 text-center font-black text-slate-500 uppercase border-b border-r border-slate-200 w-8">21</th>
+                        <th class="p-1 text-center font-black text-slate-500 uppercase border-b border-r border-slate-200 w-8">22</th>
+                        <th class="p-1 text-center font-black text-slate-500 uppercase border-b border-r border-slate-200 w-8">23</th>
+                        <th class="p-1 text-center font-black text-slate-500 uppercase border-b border-r border-slate-200 w-8">24</th>
+                        <th class="p-1 text-center font-black text-slate-500 uppercase border-b border-r border-slate-200 w-8">25</th>
+                        <th class="p-1 text-center font-black text-slate-500 uppercase border-b border-r border-slate-200 w-8">26</th>
+                        <th class="p-1 text-center font-black text-slate-500 uppercase border-b border-r border-slate-200 w-8">27</th>
+                        <th class="p-1 text-center font-black text-slate-500 uppercase border-b border-r border-slate-200 w-8">28</th>
+                        <th class="p-1 text-center font-black text-slate-500 uppercase border-b border-r border-slate-200 w-8">29</th>
+                        <th class="p-1 text-center font-black text-slate-500 uppercase border-b border-r border-slate-200 w-8">30</th>
+                        <th class="p-1 text-center font-black text-slate-500 uppercase border-b border-slate-200 w-8">31</th>
+                    </tr>
+                </thead>
+                <tbody id="scheduleTableBody">
+                </tbody>
+            </table>
+        </div>
+        <div class="mt-6 flex flex-wrap gap-6 text-xs font-bold text-slate-600">
+            <span><span class="inline-block w-5 h-5 border-2 border-green-600 rounded text-green-600 text-center leading-tight">✓</span> Sudah dilakukan</span>
+            <span><span class="inline-block w-5 h-5 border-2 border-slate-300 rounded text-slate-400 text-center leading-tight">—</span> Belum</span>
+            <span><span class="bg-red-100 text-red-600 px-1 rounded">X</span> Off / libur</span>
         </div>
     </main>
 
