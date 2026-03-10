@@ -66,7 +66,7 @@ async function fetchData() {
     } catch (e) { console.error("Koneksi Error:", e); }
 }
 
-const PIKET_STORAGE_BUCKET = 'piket-photos';
+const PIKET_STORAGE_BUCKET = 'Piket_photos';
 
 /** Modal Konfirmasi 5R + Foto (wajib foto) */
 let _pendingScan = null; // { id, areaName, staffName }
