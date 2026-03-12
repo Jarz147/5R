@@ -45,6 +45,7 @@ function saveAreasToStorage() {
 }
 
 let dailyStatus = {};
+let dailyLeaderStatus = {}; // key: 'BIRU'|'HIJAU'|'MERAH' -> time string (Leader sudah scan hari ini)
 let monthlyHistory = [];
 /** Log bulanan untuk dashboard jadwal (area_id -> set of day 1-31) */
 let scheduleMonthLogs = []; // { area_id, created_at }[]
@@ -64,9 +65,14 @@ async function fetchData() {
         const { data: allLogs } = await _supabase.from('piket_logs').select('*').order('created_at', { ascending: false }).limit(50);
 
         dailyStatus = {};
+        dailyLeaderStatus = {};
         if (logsToday) {
             logsToday.forEach(log => {
-                dailyStatus[log.area_id] = new Date(log.created_at).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' });
+                if (log.scan_type === 'leader' && log.leader_shift) {
+                    dailyLeaderStatus[log.leader_shift] = new Date(log.created_at).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' });
+                } else {
+                    dailyStatus[log.area_id] = new Date(log.created_at).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' });
+                }
             });
         }
         monthlyHistory = allLogs || [];
@@ -214,6 +220,49 @@ function renderUI() {
             `;
             grid.appendChild(card);
         });
+    });
+
+    // Card Leader 5R (3 Leader: BIRU, HIJAU, MERAH) — status pengecekan per area yang dipimpin
+    const leaderShifts = [
+        { key: 'BIRU', name: 'SHIFT BIRU', bg: 'bg-blue-50', border: 'border-blue-200', accent: 'text-blue-700', dot: 'bg-blue-500' },
+        { key: 'HIJAU', name: 'SHIFT HIJAU', bg: 'bg-green-50', border: 'border-green-200', accent: 'text-green-700', dot: 'bg-green-500' },
+        { key: 'MERAH', name: 'SHIFT MERAH', bg: 'bg-red-50', border: 'border-red-200', accent: 'text-red-700', dot: 'bg-red-500' }
+    ];
+    const leaderTitle = document.createElement('div');
+    leaderTitle.className = "col-span-full font-black text-slate-400 text-xs mt-10 mb-1 tracking-[0.2em] uppercase flex items-center gap-2";
+    leaderTitle.innerHTML = '<span class="h-px bg-slate-200 grow"></span> LEADER 5R — Pengecekan per area <span class="h-px bg-slate-200 grow"></span>';
+    grid.appendChild(leaderTitle);
+
+    leaderShifts.forEach(ls => {
+        const membersInShift = areas.filter(a => a.shift === ls.key);
+        const leaderTime = dailyLeaderStatus[ls.key];
+        const doneCount = membersInShift.filter(a => dailyStatus[a.id]).length;
+        const totalCount = membersInShift.length;
+        const card = document.createElement('div');
+        card.className = `bg-white p-5 rounded-[2rem] shadow-sm border-2 ${ls.border} ${ls.bg} transition-all duration-300`;
+        const esc = (s) => String(s || '').replace(/\\/g, '\\\\').replace(/'/g, "\\'");
+        const areaList = membersInShift.map(a => {
+            const time = dailyStatus[a.id];
+            return `<div class="flex justify-between items-center py-1.5 border-b border-slate-100 last:border-0">
+                <span class="text-[10px] font-bold text-slate-600">${escapeHtml(a.name)} — ${escapeHtml(a.staff)}</span>
+                ${time ? '<span class="text-green-600 text-xs font-black">✓ Sudah 5R</span>' : '<span class="text-red-500 text-xs font-black">✕ Belum 5R</span>'}
+            </div>`;
+        }).join('');
+        card.innerHTML = `
+            <div class="flex justify-between items-center mb-2">
+                <span class="text-[10px] font-black ${ls.accent} uppercase tracking-widest">${ls.name}</span>
+                ${leaderTime ? '<span class="text-green-600 text-sm font-black">● Sudah cek ' + leaderTime + '</span>' : '<span class="text-red-500 text-sm font-black animate-pulse">● Belum cek</span>'}
+            </div>
+            <h3 class="font-black text-slate-800 text-sm uppercase mb-3">Leader 5R</h3>
+            <p class="text-[10px] text-slate-500 font-bold mb-3">Pengecekan area: ${doneCount}/${totalCount}</p>
+            <div class="space-y-0 text-[10px] mb-4">
+                ${areaList}
+            </div>
+            <button onclick="openScanPhotoModal(0, 'Leader ${esc(ls.key)}', 'Leader 5R', 'leader', '${ls.key}')" class="w-full ${leaderTime ? 'bg-slate-200 text-slate-600' : 'bg-amber-500 hover:bg-amber-600 text-white'} text-[9px] font-black py-2 rounded-xl transition-all active:scale-95">
+                ${leaderTime ? 'Cek ulang sebagai Leader' : 'Cek sebagai Leader'}
+            </button>
+        `;
+        grid.appendChild(card);
     });
 
     // Update Header Info
