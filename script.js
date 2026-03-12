@@ -25,8 +25,8 @@ const STORAGE_KEY = 'piket_areas';
 const STORAGE_KEY_LEADERS = 'piket_leader_names';
 const AUTH_STORAGE_KEY = 'piket_auth';
 const USERS_STORAGE_KEY = 'piket_users';
-const ADMIN_USERNAME = 'admin5r';
-const ADMIN_PASSWORD = '5r@2024';
+const ADMIN_USERNAME = 'admin@5r.com'; // email admin Supabase
+const ADMIN_PASSWORD = '5r@2024'; // tidak digunakan lagi untuk login, hanya legacy
 let areas = loadAreasFromStorage();
 
 function loadAreasFromStorage() {
