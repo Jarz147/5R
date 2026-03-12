@@ -22,6 +22,7 @@ const DEFAULT_AREAS = [
 ];
 
 const STORAGE_KEY = 'piket_areas';
+const STORAGE_KEY_LEADERS = 'piket_leader_names';
 const AUTH_STORAGE_KEY = 'piket_auth';
 const USERS_STORAGE_KEY = 'piket_users';
 const ADMIN_USERNAME = 'admin5r';
@@ -43,6 +44,38 @@ function loadAreasFromStorage() {
 function saveAreasToStorage() {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(areas));
 }
+
+var leaderNames = {}; // { BIRU: '', HIJAU: '', MERAH: '' }
+
+function loadLeaderNames() {
+    try {
+        var raw = localStorage.getItem(STORAGE_KEY_LEADERS);
+        if (raw) {
+            var parsed = JSON.parse(raw);
+            if (parsed && typeof parsed === 'object') {
+                leaderNames = { BIRU: parsed.BIRU || '', HIJAU: parsed.HIJAU || '', MERAH: parsed.MERAH || '' };
+                return leaderNames;
+            }
+        }
+    } catch (_) {}
+    leaderNames = { BIRU: '', HIJAU: '', MERAH: '' };
+    return leaderNames;
+}
+
+function saveLeaderNames() {
+    try {
+        localStorage.setItem(STORAGE_KEY_LEADERS, JSON.stringify(leaderNames));
+    } catch (_) {}
+}
+
+function getLeaderName(shiftKey) {
+    if (!leaderNames) loadLeaderNames();
+    var name = (leaderNames[shiftKey] || '').trim();
+    return name || 'Leader 5R';
+}
+
+// Muat nama leader dari storage saat awal
+loadLeaderNames();
 
 let dailyStatus = {};
 let dailyLeaderStatus = {}; // key: 'BIRU'|'HIJAU'|'MERAH' -> time string (Leader sudah scan hari ini)
@@ -253,12 +286,12 @@ function renderUI() {
                 <span class="text-[10px] font-black ${ls.accent} uppercase tracking-widest">${ls.name}</span>
                 ${leaderTime ? '<span class="text-green-600 text-sm font-black">● Sudah cek ' + leaderTime + '</span>' : '<span class="text-red-500 text-sm font-black animate-pulse">● Belum cek</span>'}
             </div>
-            <h3 class="font-black text-slate-800 text-sm uppercase mb-3">Leader 5R</h3>
+            <h3 class="font-black text-slate-800 text-sm uppercase mb-3">${escapeHtml(getLeaderName(ls.key))}</h3>
             <p class="text-[10px] text-slate-500 font-bold mb-3">Pengecekan area: ${doneCount}/${totalCount}</p>
             <div class="space-y-0 text-[10px] mb-4">
                 ${areaList}
             </div>
-            <button onclick="openScanPhotoModal(0, 'Leader ${esc(ls.key)}', 'Leader 5R', 'leader', '${ls.key}')" class="w-full ${leaderTime ? 'bg-slate-200 text-slate-600' : 'bg-amber-500 hover:bg-amber-600 text-white'} text-[9px] font-black py-2 rounded-xl transition-all active:scale-95">
+            <button onclick="openScanPhotoModal(0, 'Leader ${esc(ls.key)}', '${esc(getLeaderName(ls.key))}', 'leader', '${ls.key}')" class="w-full ${leaderTime ? 'bg-slate-200 text-slate-600' : 'bg-amber-500 hover:bg-amber-600 text-white'} text-[9px] font-black py-2 rounded-xl transition-all active:scale-95">
                 ${leaderTime ? 'Cek ulang sebagai Leader' : 'Cek sebagai Leader'}
             </button>
         `;
@@ -331,12 +364,14 @@ function openQRModal() {
     ];
     leaderShifts.forEach(function(ls) {
         var qrUrlLeader = baseUrl + '?role=leader&shift=' + ls.key;
+        var leaderDisplayName = getLeaderName(ls.key);
         var qrCardLeader = document.createElement('div');
         qrCardLeader.className = "qr-card-print border-2 " + ls.border + " p-4 rounded-3xl flex flex-col items-center text-center " + ls.bg + " shadow-sm";
         qrCardLeader.innerHTML = [
             '<div class="text-[9px] font-black ' + ls.text + ' mb-2 uppercase tracking-widest">Leader 5R</div>',
             '<div class="qr-placeholder-leader w-32 h-32 mb-3 flex items-center justify-center rounded-xl"></div>',
-            '<div class="font-black ' + ls.text + ' text-xs leading-tight mb-1 uppercase">' + escapeHtml(ls.name) + '</div>'
+            '<div class="font-black ' + ls.text + ' text-xs leading-tight mb-1 uppercase">' + escapeHtml(leaderDisplayName) + '</div>',
+            '<div class="text-[9px] ' + ls.text + ' font-bold">Shift ' + ls.key + '</div>'
         ].join('');
         printAreaLeader.appendChild(qrCardLeader);
         var placeholderLeader = qrCardLeader.querySelector('.qr-placeholder-leader');
@@ -363,6 +398,13 @@ function openSettingsModal() {
     areas.forEach((a, i) => {
         tbody.appendChild(createSettingsRow(i + 1, a.staff, a.name, a.shift));
     });
+    loadLeaderNames();
+    var lb = document.getElementById('settingsLeaderBIRU');
+    var lh = document.getElementById('settingsLeaderHIJAU');
+    var lm = document.getElementById('settingsLeaderMERAH');
+    if (lb) lb.value = leaderNames.BIRU || '';
+    if (lh) lh.value = leaderNames.HIJAU || '';
+    if (lm) lm.value = leaderNames.MERAH || '';
     document.getElementById('settingsModal').classList.remove('hidden');
 }
 
@@ -404,6 +446,13 @@ function saveSettings() {
     }
     areas = newAreas.map((a, i) => ({ ...a, id: i + 1 }));
     saveAreasToStorage();
+    var lb = document.getElementById('settingsLeaderBIRU');
+    var lh = document.getElementById('settingsLeaderHIJAU');
+    var lm = document.getElementById('settingsLeaderMERAH');
+    if (lb) leaderNames.BIRU = (lb.value || '').trim();
+    if (lh) leaderNames.HIJAU = (lh.value || '').trim();
+    if (lm) leaderNames.MERAH = (lm.value || '').trim();
+    saveLeaderNames();
     closeSettingsModal();
     renderUI();
 }
@@ -412,7 +461,9 @@ function resetSettingsToDefault() {
     if (!confirm('Kembalikan semua nama dan zona ke data default?')) return;
     areas = JSON.parse(JSON.stringify(DEFAULT_AREAS));
     saveAreasToStorage();
-    openSettingsModal(); // refresh table
+    leaderNames = { BIRU: '', HIJAU: '', MERAH: '' };
+    saveLeaderNames();
+    openSettingsModal(); // refresh table and leader inputs
     renderUI();
 }
 
@@ -451,7 +502,7 @@ function openEditScheduleModalFromCell(el) {
     var monthNames = ['Januari','Februari','Maret','April','Mei','Juni','Juli','Agustus','September','Oktober','November','Desember'];
     if (label) {
         if (isLeader) {
-            label.textContent = 'Leader ' + leaderShift + ' — Tanggal ' + day + ' ' + (monthNames[month] || '') + ' ' + year;
+            label.textContent = getLeaderName(leaderShift) + ' — Tanggal ' + day + ' ' + (monthNames[month] || '') + ' ' + year;
         } else {
             label.textContent = staffName + ' (' + areaName + ') — Tanggal ' + day + ' ' + (monthNames[month] || '') + ' ' + year;
         }
@@ -478,7 +529,7 @@ async function insertLogForDay(areaId, areaName, staffName, year, month, day, is
     var row = {
         area_id: areaId,
         area_name: areaName || ('Leader ' + leaderShift),
-        staff_name: staffName || 'Leader 5R',
+        staff_name: staffName || getLeaderName(leaderShift),
         created_at: created,
         scan_type: isLeader ? 'leader' : 'pic',
         photo_url: null
@@ -553,7 +604,7 @@ function checkAutoScan() {
     const shiftParam = params.get('shift');
     if (role === 'leader' && (shiftParam === 'BIRU' || shiftParam === 'HIJAU' || shiftParam === 'MERAH')) {
         window.history.replaceState({}, document.title, window.location.pathname);
-        openScanPhotoModal(0, 'Leader ' + shiftParam, 'Leader 5R', 'leader', shiftParam);
+        openScanPhotoModal(0, 'Leader ' + shiftParam, getLeaderName(shiftParam), 'leader', shiftParam);
         return;
     }
     if (idParam) {
@@ -705,7 +756,7 @@ function renderScheduleDashboard() {
         // Satu baris Leader 5R per shift (3 leader total)
         const leaderRow = document.createElement('tr');
         leaderRow.className = 'border-b border-slate-100 bg-amber-50/50';
-        let leaderCells = `<td class="p-1 border-r border-slate-200 sticky left-0 bg-amber-50/70 font-bold text-amber-800 text-xs">Leader 5R</td>`;
+        let leaderCells = `<td class="p-1 border-r border-slate-200 sticky left-0 bg-amber-50/70 font-bold text-amber-800 text-xs">${escapeHtml(getLeaderName(shift.key))}</td>`;
         for (let day = 1; day <= 31; day++) {
             const off = day > daysInMonth || isOffDay(year, month, day);
             const leaderKey = shift.key + '_' + day;
