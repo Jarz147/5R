@@ -48,7 +48,8 @@ let dailyStatus = {};
 let monthlyHistory = [];
 /** Log bulanan untuk dashboard jadwal (area_id -> set of day 1-31) */
 let scheduleMonthLogs = []; // { area_id, created_at }[]
-let scheduleScanMap = {};   // key: "areaId_day" -> true
+let scheduleScanMap = {};   // key: "areaId_day" -> true (scan PIC)
+let scheduleLeaderScanMap = {}; // key: "areaId_day" -> true (scan Leader 5R)
 
 /** Mengambil data dari Supabase */
 async function fetchData() {
@@ -76,12 +77,18 @@ async function fetchData() {
 const PIKET_STORAGE_BUCKET = 'Piket_photos';
 
 /** Modal Konfirmasi 5R + Foto (wajib foto) */
-let _pendingScan = null; // { id, areaName, staffName }
+let _pendingScan = null; // { id, areaName, staffName, scanType: 'pic'|'leader' }
 
-function openScanPhotoModal(id, areaName, staffName) {
-    _pendingScan = { id, areaName, staffName };
+function openScanPhotoModal(id, areaName, staffName, scanType) {
+    scanType = scanType === 'leader' ? 'leader' : 'pic';
+    _pendingScan = { id, areaName, staffName, scanType };
     document.getElementById('scanPhotoAreaName').textContent = areaName || '-';
     document.getElementById('scanPhotoStaffName').textContent = staffName || '-';
+    var roleLabel = document.getElementById('scanPhotoRoleLabel');
+    if (roleLabel) {
+        roleLabel.textContent = scanType === 'leader' ? 'Leader 5R' : '';
+        roleLabel.style.display = scanType === 'leader' ? 'block' : 'none';
+    }
     document.getElementById('scanPhotoInput').value = '';
     document.getElementById('scanPhotoPreview').innerHTML = '<span class="text-slate-400 text-sm font-bold">Belum ada foto</span>';
     document.getElementById('scanPhotoSubmitBtn').disabled = true;
@@ -142,10 +149,10 @@ async function submitScanWithPhoto() {
         const photoUrl = urlData.publicUrl;
 
         const { error: insertError } = await _supabase.from('piket_logs').insert([
-            { area_id: id, area_name: areaName, staff_name: staffName, photo_url: photoUrl }
+            { area_id: id, area_name: areaName, staff_name: staffName, photo_url: photoUrl, scan_type: (_pendingScan.scanType === 'leader' ? 'leader' : 'pic') }
         ]);
         if (insertError) {
-            alert('Gagal menyimpan log. Tambah kolom photo_url (text) di tabel piket_logs jika belum ada.');
+            alert('Gagal menyimpan log. Pastikan tabel piket_logs punya kolom photo_url (text) dan scan_type (text, default \'pic\').');
             btn.disabled = false;
             btn.textContent = 'Submit 5R';
             return;
@@ -255,6 +262,29 @@ function openQRModal() {
             placeholder.innerHTML = '<span class="text-slate-400 text-xs">Error</span>';
             console.error('QR error:', e);
         }
+
+        const qrUrlLeader = `${baseUrl}?scan=${member.id}&role=leader`;
+        const qrCardLeader = document.createElement('div');
+        qrCardLeader.className = "qr-card-print border-2 border-amber-200 p-4 rounded-3xl flex flex-col items-center text-center bg-amber-50 shadow-sm";
+        qrCardLeader.innerHTML = `
+            <div class="text-[9px] font-black text-amber-600 mb-2 uppercase tracking-widest">Leader 5R · ${member.shift}</div>
+            <div class="qr-placeholder-leader w-32 h-32 mb-3 flex items-center justify-center bg-amber-100/50 rounded-xl"></div>
+            <div class="font-black text-amber-900 text-xs leading-tight mb-1 uppercase">Leader ${escapeHtml(member.name)}</div>
+            <div class="text-[9px] text-amber-700 font-bold italic font-mono">ID: ${String(member.id).padStart(2,'0')} | ${escapeHtml(member.staff)}</div>
+        `;
+        printArea.appendChild(qrCardLeader);
+
+        const placeholderLeader = qrCardLeader.querySelector('.qr-placeholder-leader');
+        try {
+            new QRCode(placeholderLeader, {
+                text: qrUrlLeader,
+                width: 128,
+                height: 128
+            });
+        } catch (e) {
+            if (placeholderLeader) placeholderLeader.innerHTML = '<span class="text-amber-600 text-xs">Error</span>';
+            console.error('QR Leader error:', e);
+        }
     });
 }
 
@@ -345,15 +375,17 @@ function exportCSV() {
     a.click();
 }
 
-/** Deteksi Scan Otomatis dari URL Parameter (?scan=13) — buka modal foto */
+/** Deteksi Scan Otomatis dari URL Parameter (?scan=13 atau ?scan=13&role=leader) — buka modal foto */
 function checkAutoScan() {
     const params = new URLSearchParams(window.location.search);
     const idParam = params.get('scan');
+    const role = params.get('role');
+    const scanType = (role === 'leader') ? 'leader' : 'pic';
     if (idParam) {
         const area = areas.find(a => a.id == idParam);
         if (area) {
             window.history.replaceState({}, document.title, window.location.pathname);
-            openScanPhotoModal(area.id, area.name, area.staff);
+            openScanPhotoModal(area.id, area.name, area.staff, scanType);
         }
     }
 }
@@ -400,17 +432,23 @@ async function fetchScheduleMonth() {
     const start = new Date(year, month, 1).toISOString();
     const end = new Date(year, month + 1, 0, 23, 59, 59).toISOString();
     try {
-        const { data } = await _supabase.from('piket_logs').select('area_id, created_at').gte('created_at', start).lte('created_at', end);
+        const { data } = await _supabase.from('piket_logs').select('area_id, created_at, scan_type').gte('created_at', start).lte('created_at', end);
         scheduleMonthLogs = data || [];
         scheduleScanMap = {};
+        scheduleLeaderScanMap = {};
         scheduleMonthLogs.forEach(log => {
             const d = new Date(log.created_at).getDate();
             const key = `${log.area_id}_${d}`;
-            scheduleScanMap[key] = true;
+            if (log.scan_type === 'leader') {
+                scheduleLeaderScanMap[key] = true;
+            } else {
+                scheduleScanMap[key] = true;
+            }
         });
     } catch (e) {
         scheduleMonthLogs = [];
         scheduleScanMap = {};
+        scheduleLeaderScanMap = {};
     }
 }
 
@@ -457,30 +495,44 @@ function renderScheduleDashboard() {
             const actualRow = document.createElement('tr');
             actualRow.className = 'border-b border-slate-200';
             let actualCells = `<td class="p-1 border-r border-slate-200 sticky left-0 bg-white font-bold text-slate-600">${escapeHtml(area.staff)}</td>`;
+            const leaderRow = document.createElement('tr');
+            leaderRow.className = 'border-b border-slate-100 bg-amber-50/50';
+            let leaderCells = `<td class="p-1 border-r border-slate-200 sticky left-0 bg-amber-50/70 font-bold text-amber-800 text-xs">Leader 5R</td>`;
             for (let day = 1; day <= 31; day++) {
                 const off = day > daysInMonth || isOffDay(year, month, day);
                 planCells += `<td class="p-0.5 text-center border-r border-slate-100 ${off ? 'bg-red-100 text-red-400' : ''}">${off ? '' : letter}</td>`;
                 const key = `${area.id}_${day}`;
                 const done = scheduleScanMap[key];
+                const leaderDone = scheduleLeaderScanMap[key];
                 const isPast = (year < todayYear) ||
                                (year === todayYear && month < todayMonth) ||
                                (year === todayYear && month === todayMonth && day < todayDay);
                 if (off) {
                     actualCells += `<td class="p-0.5 text-center border-r border-slate-100 bg-red-100 text-red-500 font-bold">—</td>`;
+                    leaderCells += `<td class="p-0.5 text-center border-r border-slate-100 bg-red-100 text-red-500 font-bold">—</td>`;
                 } else if (done) {
                     actualCells += `<td class="p-0.5 text-center border-r border-slate-100 text-green-600 font-bold" title="Sudah 5R">✓</td>`;
                 } else if (isPast) {
-                    // Hari sudah lewat dan belum scan -> tampilkan ✕
                     actualCells += `<td class="p-0.5 text-center border-r border-slate-100 text-red-500 font-bold" title="Belum 5R">✕</td>`;
                 } else {
-                    // Hari ini atau hari yang akan datang tanpa scan -> masih kosong/neutral
                     actualCells += `<td class="p-0.5 text-center border-r border-slate-100 text-slate-300">—</td>`;
+                }
+                if (!off) {
+                    if (leaderDone) {
+                        leaderCells += `<td class="p-0.5 text-center border-r border-slate-100 text-green-600 font-bold" title="Leader sudah scan">✓</td>`;
+                    } else if (isPast) {
+                        leaderCells += `<td class="p-0.5 text-center border-r border-slate-100 text-red-500 font-bold" title="Leader belum scan">✕</td>`;
+                    } else {
+                        leaderCells += `<td class="p-0.5 text-center border-r border-slate-100 text-slate-300">—</td>`;
+                    }
                 }
             }
             planRow.innerHTML = planCells;
             actualRow.innerHTML = actualCells;
+            leaderRow.innerHTML = leaderCells;
             tbody.appendChild(planRow);
             tbody.appendChild(actualRow);
+            tbody.appendChild(leaderRow);
         });
     });
 }
