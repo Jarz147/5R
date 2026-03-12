@@ -22,6 +22,10 @@ const DEFAULT_AREAS = [
 ];
 
 const STORAGE_KEY = 'piket_areas';
+const AUTH_STORAGE_KEY = 'piket_auth';
+const USERS_STORAGE_KEY = 'piket_users';
+const ADMIN_USERNAME = 'admin5r';
+const ADMIN_PASSWORD = '5r@2024';
 let areas = loadAreasFromStorage();
 
 function loadAreasFromStorage() {
@@ -458,11 +462,20 @@ function renderScheduleDashboard() {
                 planCells += `<td class="p-0.5 text-center border-r border-slate-100 ${off ? 'bg-red-100 text-red-400' : ''}">${off ? '' : letter}</td>`;
                 const key = `${area.id}_${day}`;
                 const done = scheduleScanMap[key];
-                const isPastOrToday = (year < todayYear) || (year === todayYear && month < todayMonth) || (year === todayYear && month === todayMonth && day <= todayDay);
-                if (off) actualCells += `<td class="p-0.5 text-center border-r border-slate-100 bg-red-100 text-red-500 font-bold">—</td>`;
-                else if (done) actualCells += `<td class="p-0.5 text-center border-r border-slate-100 text-green-600 font-bold" title="Sudah 5R">✓</td>`;
-                else if (isPastOrToday) actualCells += `<td class="p-0.5 text-center border-r border-slate-100 text-red-500 font-bold" title="Belum 5R">✕</td>`;
-                else actualCells += `<td class="p-0.5 text-center border-r border-slate-100 text-slate-300">—</td>`;
+                const isPast = (year < todayYear) ||
+                               (year === todayYear && month < todayMonth) ||
+                               (year === todayYear && month === todayMonth && day < todayDay);
+                if (off) {
+                    actualCells += `<td class="p-0.5 text-center border-r border-slate-100 bg-red-100 text-red-500 font-bold">—</td>`;
+                } else if (done) {
+                    actualCells += `<td class="p-0.5 text-center border-r border-slate-100 text-green-600 font-bold" title="Sudah 5R">✓</td>`;
+                } else if (isPast) {
+                    // Hari sudah lewat dan belum scan -> tampilkan ✕
+                    actualCells += `<td class="p-0.5 text-center border-r border-slate-100 text-red-500 font-bold" title="Belum 5R">✕</td>`;
+                } else {
+                    // Hari ini atau hari yang akan datang tanpa scan -> masih kosong/neutral
+                    actualCells += `<td class="p-0.5 text-center border-r border-slate-100 text-slate-300">—</td>`;
+                }
             }
             planRow.innerHTML = planCells;
             actualRow.innerHTML = actualCells;
@@ -472,10 +485,147 @@ function renderScheduleDashboard() {
     });
 }
 
+// --- Kelola Akun (hanya admin) ---
+function getStoredUsers() {
+    try {
+        const raw = localStorage.getItem(USERS_STORAGE_KEY);
+        if (!raw) return [];
+        const parsed = JSON.parse(raw);
+        return Array.isArray(parsed) ? parsed : [];
+    } catch (_) {
+        return [];
+    }
+}
+
+function saveStoredUsers(users) {
+    try {
+        localStorage.setItem(USERS_STORAGE_KEY, JSON.stringify(users));
+    } catch (_) {}
+}
+
+function isCurrentUserAdmin() {
+    try {
+        const raw = localStorage.getItem(AUTH_STORAGE_KEY);
+        if (!raw) return false;
+        const parsed = JSON.parse(raw);
+        return (parsed && parsed.username) === ADMIN_USERNAME;
+    } catch (_) {
+        return false;
+    }
+}
+
+function openAccountsModal() {
+    const modal = document.getElementById('accountsModal');
+    if (!modal) return;
+    renderAccountsTable();
+    const u = document.getElementById('newAccountUser');
+    const p = document.getElementById('newAccountPass');
+    if (u) u.value = '';
+    if (p) p.value = '';
+    modal.classList.remove('hidden');
+}
+
+function closeAccountsModal() {
+    const modal = document.getElementById('accountsModal');
+    if (modal) modal.classList.add('hidden');
+}
+
+function renderAccountsTable() {
+    const tbody = document.getElementById('accountsTableBody');
+    if (!tbody) return;
+    const users = getStoredUsers();
+    tbody.innerHTML = users.map((u, i) => {
+        const safeUser = String(u.username || '')
+            .replace(/\\/g, '\\\\')
+            .replace(/'/g, "\\'")
+            .replace(/"/g, '&quot;');
+        const displayUser = escapeHtml(u.username);
+        return `<tr class="border-b border-slate-100 hover:bg-slate-50">
+            <td class="py-3 pr-2 text-sm font-bold text-slate-400">${i + 1}</td>
+            <td class="py-2 pr-2 font-bold text-slate-800">${displayUser}</td>
+            <td class="py-2 pr-2 text-slate-500 text-sm">••••••••</td>
+            <td class="py-2"><button type="button" onclick="removeAccount(this.getAttribute('data-username'))" data-username="${safeUser}" class="text-red-500 hover:text-red-700 text-lg font-black leading-none" title="Hapus akun">&times;</button></td>
+        </tr>`;
+    }).join('') || '<tr><td colspan="4" class="py-6 text-center text-slate-400 font-bold text-sm">Belum ada akun tambahan. Tambah melalui form di bawah.</td></tr>';
+}
+
+function addAccountFromForm() {
+    const usernameEl = document.getElementById('newAccountUser');
+    const passwordEl = document.getElementById('newAccountPass');
+    const username = (usernameEl && usernameEl.value || '').trim();
+    const password = (passwordEl && passwordEl.value) || '';
+
+    if (!username) {
+        alert('Username wajib diisi.');
+        return;
+    }
+    if (username.toLowerCase() === ADMIN_USERNAME.toLowerCase()) {
+        alert('Username "' + ADMIN_USERNAME + '" adalah akun admin dan tidak bisa diduplikasi.');
+        return;
+    }
+    if (!password) {
+        alert('Password wajib diisi.');
+        return;
+    }
+
+    const users = getStoredUsers();
+    if (users.some(function(u) { return (u.username || '').toLowerCase() === username.toLowerCase(); })) {
+        alert('Username sudah dipakai. Gunakan username lain.');
+        return;
+    }
+
+    users.push({ username: username, password: password });
+    saveStoredUsers(users);
+    if (usernameEl) usernameEl.value = '';
+    if (passwordEl) passwordEl.value = '';
+    renderAccountsTable();
+}
+
+function removeAccount(username) {
+    if (!username) return;
+    if ((username || '').toLowerCase() === ADMIN_USERNAME.toLowerCase()) {
+        alert('Akun admin tidak dapat dihapus.');
+        return;
+    }
+    if (!confirm('Hapus akun "' + username + '"?')) return;
+    const users = getStoredUsers().filter(function(u) { return (u.username || '').toLowerCase() !== username.toLowerCase(); });
+    saveStoredUsers(users);
+    renderAccountsTable();
+}
+
 // Jalankan sistem
 document.addEventListener('DOMContentLoaded', () => {
-    document.getElementById('scanPhotoInput').addEventListener('change', _onScanPhotoChange);
+    // Redirect ke halaman login bila belum login
+    try {
+        const raw = localStorage.getItem(AUTH_STORAGE_KEY);
+        const loggedIn = raw ? !!(JSON.parse(raw) || {}).loggedIn : false;
+        if (!loggedIn) {
+            window.location.href = 'login.html';
+            return;
+        }
+    } catch (_) {
+        window.location.href = 'login.html';
+        return;
+    }
+
+    const scanInput = document.getElementById('scanPhotoInput');
+    if (scanInput) {
+        scanInput.addEventListener('change', _onScanPhotoChange);
+    }
+
     fetchData();
     checkAutoScan();
     setInterval(fetchData, 15000); // Auto-refresh setiap 15 detik
+
+    var btnKelola = document.getElementById('btnKelolaAkun');
+    if (btnKelola) {
+        btnKelola.style.display = isCurrentUserAdmin() ? '' : 'none';
+    }
 });
+
+function handleLogout() {
+    try {
+        localStorage.removeItem(AUTH_STORAGE_KEY);
+    } catch (_) {}
+    window.location.href = 'login.html';
+}
