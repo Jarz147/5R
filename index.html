@@ -236,6 +236,23 @@
                 <button type="button" onclick="addSettingsRow()" class="mt-4 w-full py-3 border-2 border-dashed border-slate-300 rounded-xl text-slate-500 font-black text-sm hover:bg-slate-50 hover:border-slate-400 transition-all">
                     + Tambah Baris
                 </button>
+                <div class="mt-8 pt-6 border-t border-slate-200">
+                    <p class="text-xs font-black text-slate-500 uppercase mb-3">Nama Leader 5R (per shift)</p>
+                    <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                        <div>
+                            <label class="block text-[11px] font-bold text-slate-500 uppercase mb-1">Leader Shift BIRU</label>
+                            <input type="text" id="settingsLeaderBIRU" placeholder="Nama Leader BIRU" class="w-full px-3 py-2 rounded-xl border border-slate-200 text-sm font-bold">
+                        </div>
+                        <div>
+                            <label class="block text-[11px] font-bold text-slate-500 uppercase mb-1">Leader Shift HIJAU</label>
+                            <input type="text" id="settingsLeaderHIJAU" placeholder="Nama Leader HIJAU" class="w-full px-3 py-2 rounded-xl border border-slate-200 text-sm font-bold">
+                        </div>
+                        <div>
+                            <label class="block text-[11px] font-bold text-slate-500 uppercase mb-1">Leader Shift MERAH</label>
+                            <input type="text" id="settingsLeaderMERAH" placeholder="Nama Leader MERAH" class="w-full px-3 py-2 rounded-xl border border-slate-200 text-sm font-bold">
+                        </div>
+                    </div>
+                </div>
             </div>
             <div class="p-6 border-t bg-slate-50 flex flex-wrap gap-3 justify-end">
                 <button type="button" onclick="resetSettingsToDefault()" class="px-5 py-2.5 rounded-xl font-black text-xs bg-slate-200 text-slate-600 hover:bg-slate-300 transition-all">Reset ke Default</button>
