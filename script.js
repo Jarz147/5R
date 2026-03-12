@@ -900,10 +900,16 @@ document.addEventListener('DOMContentLoaded', () => {
     // Redirect ke halaman login bila belum login
     try {
         const raw = localStorage.getItem(AUTH_STORAGE_KEY);
-        const loggedIn = raw ? !!(JSON.parse(raw) || {}).loggedIn : false;
+        const parsed = raw ? JSON.parse(raw) : {};
+        const loggedIn = !!parsed.loggedIn;
         if (!loggedIn) {
             window.location.href = 'login.html';
             return;
+        }
+        var loginEl = document.getElementById('loginAsIndicator');
+        if (loginEl) {
+            var u = parsed.username || '';
+            loginEl.textContent = u === ADMIN_USERNAME ? 'Login sebagai: Admin' : ('Login sebagai: ' + (u || '—'));
         }
     } catch (_) {
         window.location.href = 'login.html';
