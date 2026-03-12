@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Login - Dashboard 5R</title>
     <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
     <link rel="stylesheet" href="style.css">
 </head>
 <body class="bg-slate-100 min-h-screen font-sans flex items-center justify-center px-4">
@@ -17,10 +18,10 @@
             </div>
             <form id="loginForm" class="space-y-4">
                 <div>
-                    <label for="loginUser" class="block text-xs font-black text-slate-500 uppercase mb-1.5">Username</label>
-                    <input id="loginUser" type="text" autocomplete="username" required
+                    <label for="loginUser" class="block text-xs font-black text-slate-500 uppercase mb-1.5">Email</label>
+                    <input id="loginUser" type="email" autocomplete="username" required
                         class="w-full px-3 py-2.5 rounded-xl border border-slate-200 text-sm font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
-                        placeholder="mis. admin5r">
+                        placeholder="mis. admin@5r.com">
                 </div>
                 <div>
                     <label for="loginPass" class="block text-xs font-black text-slate-500 uppercase mb-1.5">Password</label>
@@ -29,7 +30,7 @@
                         placeholder="********">
                 </div>
                 <p class="text-[11px] text-slate-400 font-bold italic">
-                    Hint: username <span class="font-black text-slate-600">admin5r</span> &amp; password <span class="font-black text-slate-600">5r@2024</span> (bisa diubah di kode).
+                    Gunakan akun email yang terdaftar di Supabase (contoh: <span class="font-black text-slate-600">admin@5r.com</span>).
                 </p>
                 <button type="submit"
                     class="w-full bg-indigo-600 hover:bg-indigo-700 text-white py-2.5 rounded-xl font-black text-xs uppercase tracking-wide shadow-md active:scale-95 transition-all">
@@ -41,20 +42,11 @@
 
     <script>
         const AUTH_STORAGE_KEY = 'piket_auth';
-        const USERS_STORAGE_KEY = 'piket_users';
-        const ADMIN_USERNAME = 'admin5r';
-        const ADMIN_PASSWORD = '5r@2024';
+        const SUPABASE_URL = 'https://synhvvaolrjxdcbyozld.supabase.co';
+        const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InN5bmh2dmFvbHJqeGRjYnlvemxkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Njk5Njg4NzEsImV4cCI6MjA4NTU0NDg3MX0.GSEfz8HVd49uEWXd70taR6FUv243VrFJKn6KlsZW-aQ';
+        const ADMIN_USERNAME = 'admin@5r.com';
 
-        function getStoredUsers() {
-            try {
-                var raw = localStorage.getItem(USERS_STORAGE_KEY);
-                if (!raw) return [];
-                var parsed = JSON.parse(raw);
-                return Array.isArray(parsed) ? parsed : [];
-            } catch (_) {
-                return [];
-            }
-        }
+        const _supabase = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
         function saveAuthState(loggedIn, username) {
             try {
@@ -80,26 +72,30 @@
             }
 
             var form = document.getElementById('loginForm');
-            form.addEventListener('submit', function(e) {
+            form.addEventListener('submit', async function(e) {
                 e.preventDefault();
-                var username = (document.getElementById('loginUser').value || '').trim();
+                var email = (document.getElementById('loginUser').value || '').trim();
                 var password = document.getElementById('loginPass').value || '';
 
-                if (username === ADMIN_USERNAME && password === ADMIN_PASSWORD) {
-                    saveAuthState(true, username);
-                    window.location.href = 'index.html';
+                if (!email || !password) {
+                    alert('Email dan password wajib diisi.');
                     return;
                 }
 
-                var users = getStoredUsers();
-                var found = users.find(function(u) {
-                    return (u.username || '').toLowerCase() === username.toLowerCase() && u.password === password;
-                });
-                if (found) {
-                    saveAuthState(true, found.username);
+                try {
+                    const { data, error } = await _supabase.auth.signInWithPassword({
+                        email: email,
+                        password: password
+                    });
+                    if (error) {
+                        alert('Login gagal: ' + (error.message || 'Periksa email dan password.'));
+                        return;
+                    }
+                    var userEmail = (data && data.user && data.user.email) || email;
+                    saveAuthState(true, userEmail);
                     window.location.href = 'index.html';
-                } else {
-                    alert('Username atau password salah.');
+                } catch (err) {
+                    alert('Login error: ' + (err.message || err));
                 }
             });
         });
