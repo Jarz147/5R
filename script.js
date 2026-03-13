@@ -339,8 +339,8 @@ function openQRModal() {
         qrCard.innerHTML = `
             <div class="text-[9px] font-black text-slate-400 mb-2 uppercase tracking-widest">${member.shift}</div>
             <div class="qr-placeholder w-32 h-32 mb-3 flex items-center justify-center bg-slate-50 rounded-xl"></div>
-            <div class="font-black text-slate-800 text-xs leading-tight mb-1 uppercase">${escapeHtml(member.staff)}</div>
-            <div class="text-[9px] text-slate-500 font-bold italic font-mono">ID: ${String(member.id).padStart(2,'0')} | ${escapeHtml(member.name)}</div>
+            <div class="font-black text-slate-800 text-xs leading-tight mb-1 uppercase">${escapeHtml(member.name)}</div>
+            <div class="text-[9px] text-slate-500 font-bold italic font-mono">PIC: ${escapeHtml(member.staff)}</div>
         `;
         printArea.appendChild(qrCard);
 
@@ -351,6 +351,31 @@ function openQRModal() {
                 width: 128,
                 height: 128
             });
+
+            const downloadBtn = document.createElement('button');
+            downloadBtn.className = 'mt-2 text-[9px] font-black text-indigo-600 hover:text-indigo-800 underline';
+            downloadBtn.textContent = 'Download QR';
+            downloadBtn.addEventListener('click', function () {
+                const imgOrCanvas = placeholder.querySelector('canvas') || placeholder.querySelector('img');
+                if (!imgOrCanvas) {
+                    alert('QR belum siap untuk diunduh.');
+                    return;
+                }
+                let dataUrl;
+                if (imgOrCanvas.tagName && imgOrCanvas.tagName.toLowerCase() === 'canvas') {
+                    dataUrl = imgOrCanvas.toDataURL('image/png');
+                } else {
+                    dataUrl = imgOrCanvas.src;
+                }
+                const link = document.createElement('a');
+                link.href = dataUrl;
+                const safeArea = (member.name || 'AREA').replace(/\s+/g, '_');
+                link.download = `QR_${safeArea}.png`;
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+            });
+            qrCard.appendChild(downloadBtn);
         } catch (e) {
             placeholder.innerHTML = '<span class="text-slate-400 text-xs">Error</span>';
             console.error('QR error:', e);
@@ -377,6 +402,30 @@ function openQRModal() {
         var placeholderLeader = qrCardLeader.querySelector('.qr-placeholder-leader');
         try {
             new QRCode(placeholderLeader, { text: qrUrlLeader, width: 128, height: 128 });
+
+            var downloadBtnLeader = document.createElement('button');
+            downloadBtnLeader.className = 'mt-2 text-[9px] font-black ' + ls.text + ' hover:underline';
+            downloadBtnLeader.textContent = 'Download QR';
+            downloadBtnLeader.addEventListener('click', function () {
+                var imgOrCanvas = placeholderLeader.querySelector('canvas') || placeholderLeader.querySelector('img');
+                if (!imgOrCanvas) {
+                    alert('QR belum siap untuk diunduh.');
+                    return;
+                }
+                var dataUrl;
+                if (imgOrCanvas.tagName && imgOrCanvas.tagName.toLowerCase() === 'canvas') {
+                    dataUrl = imgOrCanvas.toDataURL('image/png');
+                } else {
+                    dataUrl = imgOrCanvas.src;
+                }
+                var link = document.createElement('a');
+                link.href = dataUrl;
+                link.download = 'QR_Leader_' + ls.key + '.png';
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+            });
+            qrCardLeader.appendChild(downloadBtnLeader);
         } catch (e) {
             if (placeholderLeader) placeholderLeader.innerHTML = '<span class="text-slate-500 text-xs">Error</span>';
         }
