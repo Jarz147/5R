@@ -118,6 +118,152 @@ const PIKET_STORAGE_BUCKET = 'Piket_photos';
 /** Modal Konfirmasi 5R + Foto (wajib foto) */
 let _pendingScan = null; // { id, areaName, staffName, scanType: 'pic'|'leader', leaderShift: 'BIRU'|'HIJAU'|'MERAH' }
 
+/** Mapping PIC -> Shift dan daftar opsi dropdown berbasis data saat ini */
+function getPicShiftMap() {
+    const map = {};
+    DEFAULT_AREAS.forEach(a => {
+        const key = (a.staff || '').trim();
+        if (key && !map[key]) map[key] = a.shift || 'MERAH';
+    });
+    areas.forEach(a => {
+        const key = (a.staff || '').trim();
+        if (key && !map[key]) map[key] = a.shift || 'MERAH';
+    });
+    return map;
+}
+
+function getPicOptions() {
+    const map = getPicShiftMap();
+    return Object.keys(map)
+        .sort()
+        .map(name => ({ name, shift: map[name] }));
+}
+
+function getAreaOptions() {
+    const names = new Set();
+    DEFAULT_AREAS.forEach(a => {
+        const n = (a.name || '').trim();
+        if (n) names.add(n);
+    });
+    areas.forEach(a => {
+        const n = (a.name || '').trim();
+        if (n) names.add(n);
+    });
+    return Array.from(names).sort();
+}
+
+function ensureSettingsDatalists() {
+    const existingPic = document.getElementById('picOptionsList');
+    const existingArea = document.getElementById('areaOptionsList');
+    const picOptions = getPicOptions();
+    const areaOptions = getAreaOptions();
+
+    if (!existingPic) {
+        const dlPic = document.createElement('datalist');
+        dlPic.id = 'picOptionsList';
+        dlPic.innerHTML = picOptions.map(o => `<option value="${o.name.replace(/"/g, '&quot;')}">${o.name} (SHIFT ${o.shift})</option>`).join('');
+        document.body.appendChild(dlPic);
+    } else {
+        existingPic.innerHTML = picOptions.map(o => `<option value="${o.name.replace(/"/g, '&quot;')}">${o.name} (SHIFT ${o.shift})</option>`).join('');
+    }
+
+    if (!existingArea) {
+        const dlArea = document.createElement('datalist');
+        dlArea.id = 'areaOptionsList';
+        dlArea.innerHTML = areaOptions.map(n => `<option value="${n.replace(/"/g, '&quot;')}">${n}</option>`).join('');
+        document.body.appendChild(dlArea);
+    } else {
+        existingArea.innerHTML = areaOptions.map(n => `<option value="${n.replace(/"/g, '&quot;')}">${n}</option>`).join('');
+    }
+}
+
+function onSettingsPicInputChange(inputEl) {
+    if (!inputEl) return;
+    const row = inputEl.closest('tr');
+    if (!row) return;
+    const val = (inputEl.value || '').trim();
+    const map = getPicShiftMap();
+    let matchedShift = null;
+    Object.keys(map).forEach(name => {
+        if (name.toLowerCase() === val.toLowerCase()) {
+            matchedShift = map[name];
+        }
+    });
+    const shiftSelect = row.querySelector('.settings-shift');
+    if (!shiftSelect) return;
+    if (matchedShift) {
+        shiftSelect.value = matchedShift;
+        shiftSelect.disabled = true;
+    } else {
+        shiftSelect.disabled = false;
+    }
+}
+
+/** Kompres gambar ke bawah maxSizeKB (default 100 KB) menggunakan canvas */
+function compressImageToJpeg(file, maxSizeKB) {
+    maxSizeKB = maxSizeKB || 100;
+    const maxSizeBytes = maxSizeKB * 1024;
+    const maxDimension = 1024; // batas lebar/tinggi agar file tidak terlalu besar
+
+    return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onerror = () => reject(reader.error || new Error('Gagal membaca file'));
+        reader.onload = () => {
+            const img = new Image();
+            img.onload = () => {
+                let width = img.width;
+                let height = img.height;
+
+                if (width > maxDimension || height > maxDimension) {
+                    if (width > height) {
+                        height = Math.round((height * maxDimension) / width);
+                        width = maxDimension;
+                    } else {
+                        width = Math.round((width * maxDimension) / height);
+                        height = maxDimension;
+                    }
+                }
+
+                const canvas = document.createElement('canvas');
+                canvas.width = width;
+                canvas.height = height;
+                const ctx = canvas.getContext('2d');
+                if (!ctx) {
+                    reject(new Error('Canvas tidak didukung browser'));
+                    return;
+                }
+                ctx.drawImage(img, 0, 0, width, height);
+
+                let quality = 0.8;
+
+                function tryCompress() {
+                    canvas.toBlob(
+                        function (blob) {
+                            if (!blob) {
+                                reject(new Error('Gagal mengompres gambar'));
+                                return;
+                            }
+                            if (blob.size <= maxSizeBytes || quality <= 0.3) {
+                                resolve(blob);
+                                return;
+                            }
+                            quality -= 0.1;
+                            tryCompress();
+                        },
+                        'image/jpeg',
+                        quality
+                    );
+                }
+
+                tryCompress();
+            };
+            img.onerror = () => reject(new Error('Gagal memuat gambar untuk kompresi'));
+            img.src = reader.result;
+        };
+        reader.readAsDataURL(file);
+    });
+}
+
 function openScanPhotoModal(id, areaName, staffName, scanType, leaderShift) {
     scanType = scanType === 'leader' ? 'leader' : 'pic';
     _pendingScan = { id: id || 0, areaName: areaName || '', staffName: staffName || '', scanType, leaderShift: leaderShift || null };
@@ -171,12 +317,14 @@ async function submitScanWithPhoto() {
     btn.disabled = true;
     btn.textContent = 'Mengunggah...';
 
-    const { id, areaName, staffName } = _pendingScan;
-    // Path harus folder "public" dan ekstensi "jpg" sesuai policy Storage Supabase
-    const path = `public/${_pendingScan.scanType === 'leader' ? 'leader' : id}_${Date.now()}.jpg`;
-
     try {
-        const { error: uploadError } = await _supabase.storage.from(PIKET_STORAGE_BUCKET).upload(path, file, { upsert: true });
+        const compressedBlob = await compressImageToJpeg(file, 100);
+
+        const { id, areaName, staffName } = _pendingScan;
+        // Path harus folder "public" dan ekstensi "jpg" sesuai policy Storage Supabase
+        const path = `public/${_pendingScan.scanType === 'leader' ? 'leader' : id}_${Date.now()}.jpg`;
+
+        const { error: uploadError } = await _supabase.storage.from(PIKET_STORAGE_BUCKET).upload(path, compressedBlob, { upsert: true });
         if (uploadError) {
             const detail = uploadError.message ? '\n' + uploadError.message : '';
             alert('Gagal upload foto.\n\nBucket: "' + PIKET_STORAGE_BUCKET + '"\nPath: ' + path + '\n\nPastikan bucket ada di Supabase Storage dan policy INSERT untuk anon mengizinkan folder public/*.jpg.' + detail);
@@ -271,6 +419,7 @@ function renderUI() {
         const leaderTime = dailyLeaderStatus[ls.key];
         const doneCount = membersInShift.filter(a => dailyStatus[a.id]).length;
         const totalCount = membersInShift.length;
+        const allDone = totalCount > 0 && doneCount === totalCount;
         const card = document.createElement('div');
         card.className = `bg-white p-5 rounded-[2rem] shadow-sm border-2 ${ls.border} ${ls.bg} transition-all duration-300`;
         const esc = (s) => String(s || '').replace(/\\/g, '\\\\').replace(/'/g, "\\'");
@@ -284,7 +433,13 @@ function renderUI() {
         card.innerHTML = `
             <div class="flex justify-between items-center mb-2">
                 <span class="text-[10px] font-black ${ls.accent} uppercase tracking-widest">${ls.name}</span>
-                ${leaderTime ? '<span class="text-green-600 text-sm font-black">● Sudah cek ' + leaderTime + '</span>' : '<span class="text-red-500 text-sm font-black animate-pulse">● Belum cek</span>'}
+                ${
+                    leaderTime && allDone
+                        ? '<span class="text-green-600 text-[11px] font-black">● Sudah cek kinerja — ' + leaderTime + '</span>'
+                        : leaderTime && !allDone
+                            ? '<span class="text-amber-500 text-[11px] font-black">● Sudah scan, area belum lengkap</span>'
+                            : '<span class="text-red-500 text-[11px] font-black animate-pulse">● Belum cek kinerja</span>'
+                }
             </div>
             <h3 class="font-black text-slate-800 text-sm uppercase mb-3">${escapeHtml(getLeaderName(ls.key))}</h3>
             <p class="text-[10px] text-slate-500 font-bold mb-3">Pengecekan area: ${doneCount}/${totalCount}</p>
@@ -444,6 +599,7 @@ function closeQRModal() { document.getElementById('qrModal').classList.add('hidd
 function openSettingsModal() {
     const tbody = document.getElementById('settingsTableBody');
     tbody.innerHTML = '';
+    ensureSettingsDatalists();
     areas.forEach((a, i) => {
         tbody.appendChild(createSettingsRow(i + 1, a.staff, a.name, a.shift));
     });
@@ -460,11 +616,16 @@ function openSettingsModal() {
 function createSettingsRow(no, staff, name, shift) {
     const tr = document.createElement('tr');
     tr.className = 'border-b border-slate-100 hover:bg-slate-50';
-    const shiftOpts = ['BIRU', 'HIJAU', 'MERAH'].map(z => `<option value="${z}" ${shift === z ? 'selected' : ''}>${z}</option>`).join('');
+    const picShiftMap = getPicShiftMap();
+    const currentStaff = (staff || '').trim();
+    const currentArea = (name || '').trim();
+    const effectiveShift = picShiftMap[currentStaff] || shift || 'MERAH';
+
+    const shiftOpts = ['BIRU', 'HIJAU', 'MERAH'].map(z => `<option value="${z}" ${effectiveShift === z ? 'selected' : ''}>${z}</option>`).join('');
     tr.innerHTML = `
         <td class="py-3 pr-2 text-sm font-bold text-slate-400">${no}</td>
-        <td class="py-2 pr-2"><input type="text" class="settings-staff w-full px-3 py-2 border border-slate-200 rounded-lg text-sm font-bold" value="${(staff || '').replace(/"/g, '&quot;')}" placeholder="Nama PIC"></td>
-        <td class="py-2 pr-2"><input type="text" class="settings-name w-full px-3 py-2 border border-slate-200 rounded-lg text-sm font-bold" value="${(name || '').replace(/"/g, '&quot;')}" placeholder="Nama Area / Zona"></td>
+        <td class="py-2 pr-2"><input type="text" list="picOptionsList" class="settings-staff w-full px-3 py-2 border border-slate-200 rounded-lg text-sm font-bold" value="${currentStaff.replace(/"/g, '&quot;')}" placeholder="Nama PIC" oninput="onSettingsPicInputChange(this)"></td>
+        <td class="py-2 pr-2"><input type="text" list="areaOptionsList" class="settings-name w-full px-3 py-2 border border-slate-200 rounded-lg text-sm font-bold" value="${currentArea.replace(/"/g, '&quot;')}" placeholder="Nama Area / Zona"></td>
         <td class="py-2 pr-2"><select class="settings-shift w-full px-3 py-2 border border-slate-200 rounded-lg text-sm font-bold">${shiftOpts}</select></td>
         <td class="py-2"><button type="button" onclick="this.closest('tr').remove()" class="text-red-500 hover:text-red-700 text-lg font-black leading-none" title="Hapus baris">&times;</button></td>
     `;
