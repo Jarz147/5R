@@ -918,9 +918,8 @@ function renderScheduleDashboard() {
                         ? `<td class="p-0.5 text-center border-r border-slate-100 text-red-500 font-bold cursor-pointer hover:bg-red-50" title="Klik untuk ubah" data-area-id="${area.id}" data-area-name="${escapeHtml(area.name).replace(/"/g, '&quot;')}" data-staff-name="${escapeHtml(area.staff).replace(/"/g, '&quot;')}" data-year="${yearVal}" data-month="${monthVal}" data-day="${day}" data-is-leader="0" data-leader-shift="" data-current-done="0" onclick="toggleScheduleCell(this)">✕</td>`
                         : `<td class="p-0.5 text-center border-r border-slate-100 text-red-500 font-bold" title="Belum 5R">✕</td>`;
                 } else {
-                    actualCells += isAdmin
-                        ? `<td class="p-0.5 text-center border-r border-slate-100 text-slate-300 cursor-pointer hover:bg-slate-100" title="Klik untuk ubah" data-area-id="${area.id}" data-area-name="${escapeHtml(area.name).replace(/"/g, '&quot;')}" data-staff-name="${escapeHtml(area.staff).replace(/"/g, '&quot;')}" data-year="${yearVal}" data-month="${monthVal}" data-day="${day}" data-is-leader="0" data-leader-shift="" data-current-done="0" onclick="toggleScheduleCell(this)">—</td>`
-                        : `<td class="p-0.5 text-center border-r border-slate-100 text-slate-300">—</td>`;
+                    // Hari yang belum lewat (strip) tidak bisa diubah, hanya tampil strip saja
+                    actualCells += `<td class="p-0.5 text-center border-r border-slate-100 text-slate-300">—</td>`;
                 }
             }
             planRow.innerHTML = planCells;
@@ -950,9 +949,8 @@ function renderScheduleDashboard() {
                     ? `<td class="p-0.5 text-center border-r border-slate-100 text-red-500 font-bold cursor-pointer hover:bg-red-50" title="Klik untuk ubah" data-area-id="0" data-area-name="" data-staff-name="" data-year="${yearVal}" data-month="${monthVal}" data-day="${day}" data-is-leader="1" data-leader-shift="${shift.key}" data-current-done="0" onclick="toggleScheduleCell(this)">✕</td>`
                     : `<td class="p-0.5 text-center border-r border-slate-100 text-red-500 font-bold" title="Leader belum scan">✕</td>`;
             } else {
-                leaderCells += isAdmin
-                    ? `<td class="p-0.5 text-center border-r border-slate-100 text-slate-300 cursor-pointer hover:bg-slate-100" title="Klik untuk ubah" data-area-id="0" data-area-name="" data-staff-name="" data-year="${yearVal}" data-month="${monthVal}" data-day="${day}" data-is-leader="1" data-leader-shift="${shift.key}" data-current-done="0" onclick="toggleScheduleCell(this)">—</td>`
-                    : `<td class="p-0.5 text-center border-r border-slate-100 text-slate-300">—</td>`;
+                // Hari yang belum lewat (strip) tidak bisa diubah
+                leaderCells += `<td class="p-0.5 text-center border-r border-slate-100 text-slate-300">—</td>`;
             }
         }
         leaderRow.innerHTML = leaderCells;
