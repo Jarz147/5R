@@ -431,6 +431,9 @@ function renderUI() {
         card.innerHTML = `
             <div class="flex justify-between items-center mb-2">
                 <span class="text-[10px] font-black ${ls.accent} uppercase tracking-widest">${ls.name}</span>
+                <button type="button" onclick="openLeaderQR('${ls.key}')" class="ml-2 inline-flex items-center gap-1 px-2 py-1 rounded-lg bg-white/70 hover:bg-white text-[9px] font-black text-slate-600 border border-slate-200 shadow-sm">
+                    <span>QR</span>
+                </button>
                 ${
                     leaderTime && allDone
                         ? '<span class="text-green-600 text-[11px] font-black">● Sudah cek kinerja — ' + leaderTime + '</span>'
@@ -583,6 +586,16 @@ function openQRModal() {
             if (placeholderLeader) placeholderLeader.innerHTML = '<span class="text-slate-500 text-xs">Error</span>';
         }
     });
+}
+
+function openLeaderQR(shiftKey) {
+    try {
+        const baseUrl = window.location.origin + window.location.pathname.replace(/index\.html?$/i, '');
+        const url = baseUrl + '?role=leader&shift=' + encodeURIComponent(shiftKey);
+        window.open(url, '_blank');
+    } catch (e) {
+        alert('Tidak bisa membuka QR Leader.');
+    }
 }
 
 function escapeHtml(s) {
