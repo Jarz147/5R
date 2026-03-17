@@ -431,9 +431,10 @@ function renderUI() {
         card.innerHTML = `
             <div class="flex justify-between items-center mb-2">
                 <span class="text-[10px] font-black ${ls.accent} uppercase tracking-widest">${ls.name}</span>
-                <button type="button" onclick="openLeaderQR('${ls.key}')" class="ml-2 inline-flex items-center gap-1 px-2 py-1 rounded-lg bg-white/70 hover:bg-white text-[9px] font-black text-slate-600 border border-slate-200 shadow-sm">
-                    <span>QR</span>
-                </button>
+                <span class="flex items-center gap-1">
+                    <span class="text-[9px] font-black text-slate-500">QR Leader</span>
+                    <span id="leaderQr_${ls.key}" class="w-10 h-10 rounded-lg bg-white flex items-center justify-center border border-slate-200 overflow-hidden"></span>
+                </span>
                 ${
                     leaderTime && allDone
                         ? '<span class="text-green-600 text-[11px] font-black">● Sudah cek kinerja — ' + leaderTime + '</span>'
@@ -452,6 +453,18 @@ function renderUI() {
             </button>
         `;
         grid.appendChild(card);
+
+        try {
+            const baseUrl = window.location.origin + window.location.pathname.replace(/index\.html?$/i, '');
+            const qrUrlLeader = baseUrl + '?role=leader&shift=' + ls.key;
+            const placeholder = card.querySelector('#leaderQr_' + ls.key);
+            if (placeholder && window.QRCode) {
+                placeholder.innerHTML = '';
+                new QRCode(placeholder, { text: qrUrlLeader, width: 40, height: 40 });
+            }
+        } catch (e) {
+            // jika gagal generate QR di card, biarkan saja tanpa QR
+        }
     });
 
     // Update Header Info
