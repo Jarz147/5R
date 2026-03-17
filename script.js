@@ -680,9 +680,8 @@ function closeSettingsModal() {
 }
 
 // --- Edit ceklist oleh admin (JADWAL 5R + Daily Monitoring) ---
-var _editScheduleContext = null;
 
-function openEditScheduleModalFromCell(el) {
+function toggleScheduleCell(el) {
     if (!el || !isCurrentUserAdmin()) return;
     var areaId = el.getAttribute('data-area-id');
     var areaName = el.getAttribute('data-area-name') || '';
@@ -695,41 +694,22 @@ function openEditScheduleModalFromCell(el) {
     var currentDone = el.getAttribute('data-current-done') === '1';
     if (isLeader && !leaderShift) return;
     if (!isLeader && (!areaId || areaId === '0')) return;
-    _editScheduleContext = {
-        areaId: isLeader ? 0 : parseInt(areaId, 10),
-        areaName: areaName,
-        staffName: staffName,
-        year: year,
-        month: month,
-        day: day,
-        isLeader: isLeader,
-        leaderShift: leaderShift,
-        currentDone: currentDone
-    };
-    var label = document.getElementById('editScheduleLabel');
-    var monthNames = ['Januari','Februari','Maret','April','Mei','Juni','Juli','Agustus','September','Oktober','November','Desember'];
-    if (label) {
-        if (isLeader) {
-            label.textContent = getLeaderName(leaderShift) + ' — Tanggal ' + day + ' ' + (monthNames[month] || '') + ' ' + year;
-        } else {
-            label.textContent = staffName + ' (' + areaName + ') — Tanggal ' + day + ' ' + (monthNames[month] || '') + ' ' + year;
-        }
-    }
-    var btnDone = document.getElementById('editScheduleBtnDone');
-    var btnNotDone = document.getElementById('editScheduleBtnNotDone');
-    if (btnDone) btnDone.style.display = currentDone ? 'none' : '';
-    if (btnNotDone) btnNotDone.style.display = currentDone ? '' : 'none';
-    document.getElementById('editScheduleModal').classList.remove('hidden');
-}
 
-function closeEditScheduleModal() {
-    _editScheduleContext = null;
-    var m = document.getElementById('editScheduleModal');
-    if (m) m.classList.add('hidden');
-    var btnDone = document.getElementById('editScheduleBtnDone');
-    var btnNotDone = document.getElementById('editScheduleBtnNotDone');
-    if (btnDone) btnDone.style.display = '';
-    if (btnNotDone) btnNotDone.style.display = '';
+    var targetAreaId = isLeader ? 0 : parseInt(areaId, 10);
+    var promise = currentDone
+        ? deleteLogForDay(targetAreaId, year, month, day, isLeader, leaderShift)
+        : insertLogForDay(targetAreaId, areaName, staffName, year, month, day, isLeader, leaderShift);
+
+    el.style.opacity = '0.6';
+    el.style.pointerEvents = 'none';
+
+    promise.then(function () {
+        fetchScheduleMonth().then(function () { renderScheduleDashboard(); });
+        fetchData();
+    }).finally(function () {
+        el.style.opacity = '';
+        el.style.pointerEvents = '';
+    });
 }
 
 async function insertLogForDay(areaId, areaName, staffName, year, month, day, isLeader, leaderShift) {
@@ -762,19 +742,6 @@ async function deleteLogForDay(areaId, year, month, day, isLeader, leaderShift) 
         await _supabase.from('piket_logs').delete().eq('id', res.data[i].id);
     }
     return true;
-}
-
-function applyScheduleEdit(action) {
-    if (!_editScheduleContext) return;
-    var c = _editScheduleContext;
-    var promise = action === 'done'
-        ? insertLogForDay(c.areaId, c.areaName, c.staffName, c.year, c.month, c.day, c.isLeader, c.leaderShift)
-        : deleteLogForDay(c.areaId, c.year, c.month, c.day, c.isLeader, c.leaderShift);
-    promise.then(function(ok) {
-        closeEditScheduleModal();
-        fetchScheduleMonth().then(function() { renderScheduleDashboard(); });
-        fetchData();
-    });
 }
 
 function setDailyStatusByAdmin(areaId, setDone) {
@@ -944,15 +911,15 @@ function renderScheduleDashboard() {
                     actualCells += `<td class="p-0.5 text-center border-r border-slate-100 bg-red-100 text-red-500 font-bold">—</td>`;
                 } else if (done) {
                     actualCells += isAdmin
-                        ? `<td class="p-0.5 text-center border-r border-slate-100 text-green-600 font-bold cursor-pointer hover:bg-green-100" title="Admin: klik untuk edit" data-area-id="${area.id}" data-area-name="${escapeHtml(area.name).replace(/"/g, '&quot;')}" data-staff-name="${escapeHtml(area.staff).replace(/"/g, '&quot;')}" data-year="${yearVal}" data-month="${monthVal}" data-day="${day}" data-is-leader="0" data-leader-shift="" data-current-done="1" onclick="openEditScheduleModalFromCell(this)">✓</td>`
+                        ? `<td class="p-0.5 text-center border-r border-slate-100 text-green-600 font-bold cursor-pointer hover:bg-green-100" title="Klik untuk ubah" data-area-id="${area.id}" data-area-name="${escapeHtml(area.name).replace(/"/g, '&quot;')}" data-staff-name="${escapeHtml(area.staff).replace(/"/g, '&quot;')}" data-year="${yearVal}" data-month="${monthVal}" data-day="${day}" data-is-leader="0" data-leader-shift="" data-current-done="1" onclick="toggleScheduleCell(this)">✓</td>`
                         : `<td class="p-0.5 text-center border-r border-slate-100 text-green-600 font-bold" title="Sudah 5R">✓</td>`;
                 } else if (isPast) {
                     actualCells += isAdmin
-                        ? `<td class="p-0.5 text-center border-r border-slate-100 text-red-500 font-bold cursor-pointer hover:bg-red-50" title="Admin: klik untuk edit" data-area-id="${area.id}" data-area-name="${escapeHtml(area.name).replace(/"/g, '&quot;')}" data-staff-name="${escapeHtml(area.staff).replace(/"/g, '&quot;')}" data-year="${yearVal}" data-month="${monthVal}" data-day="${day}" data-is-leader="0" data-leader-shift="" data-current-done="0" onclick="openEditScheduleModalFromCell(this)">✕</td>`
+                        ? `<td class="p-0.5 text-center border-r border-slate-100 text-red-500 font-bold cursor-pointer hover:bg-red-50" title="Klik untuk ubah" data-area-id="${area.id}" data-area-name="${escapeHtml(area.name).replace(/"/g, '&quot;')}" data-staff-name="${escapeHtml(area.staff).replace(/"/g, '&quot;')}" data-year="${yearVal}" data-month="${monthVal}" data-day="${day}" data-is-leader="0" data-leader-shift="" data-current-done="0" onclick="toggleScheduleCell(this)">✕</td>`
                         : `<td class="p-0.5 text-center border-r border-slate-100 text-red-500 font-bold" title="Belum 5R">✕</td>`;
                 } else {
                     actualCells += isAdmin
-                        ? `<td class="p-0.5 text-center border-r border-slate-100 text-slate-300 cursor-pointer hover:bg-slate-100" title="Admin: klik untuk edit" data-area-id="${area.id}" data-area-name="${escapeHtml(area.name).replace(/"/g, '&quot;')}" data-staff-name="${escapeHtml(area.staff).replace(/"/g, '&quot;')}" data-year="${yearVal}" data-month="${monthVal}" data-day="${day}" data-is-leader="0" data-leader-shift="" data-current-done="0" onclick="openEditScheduleModalFromCell(this)">—</td>`
+                        ? `<td class="p-0.5 text-center border-r border-slate-100 text-slate-300 cursor-pointer hover:bg-slate-100" title="Klik untuk ubah" data-area-id="${area.id}" data-area-name="${escapeHtml(area.name).replace(/"/g, '&quot;')}" data-staff-name="${escapeHtml(area.staff).replace(/"/g, '&quot;')}" data-year="${yearVal}" data-month="${monthVal}" data-day="${day}" data-is-leader="0" data-leader-shift="" data-current-done="0" onclick="toggleScheduleCell(this)">—</td>`
                         : `<td class="p-0.5 text-center border-r border-slate-100 text-slate-300">—</td>`;
                 }
             }
@@ -976,15 +943,15 @@ function renderScheduleDashboard() {
                 leaderCells += `<td class="p-0.5 text-center border-r border-slate-100 bg-red-100 text-red-500 font-bold">—</td>`;
             } else if (leaderDone) {
                 leaderCells += isAdmin
-                    ? `<td class="p-0.5 text-center border-r border-slate-100 text-green-600 font-bold cursor-pointer hover:bg-green-100" title="Admin: klik untuk edit" data-area-id="0" data-area-name="" data-staff-name="" data-year="${yearVal}" data-month="${monthVal}" data-day="${day}" data-is-leader="1" data-leader-shift="${shift.key}" data-current-done="1" onclick="openEditScheduleModalFromCell(this)">✓</td>`
+                    ? `<td class="p-0.5 text-center border-r border-slate-100 text-green-600 font-bold cursor-pointer hover:bg-green-100" title="Klik untuk ubah" data-area-id="0" data-area-name="" data-staff-name="" data-year="${yearVal}" data-month="${monthVal}" data-day="${day}" data-is-leader="1" data-leader-shift="${shift.key}" data-current-done="1" onclick="toggleScheduleCell(this)">✓</td>`
                     : `<td class="p-0.5 text-center border-r border-slate-100 text-green-600 font-bold" title="Leader sudah scan">✓</td>`;
             } else if (isPast) {
                 leaderCells += isAdmin
-                    ? `<td class="p-0.5 text-center border-r border-slate-100 text-red-500 font-bold cursor-pointer hover:bg-red-50" title="Admin: klik untuk edit" data-area-id="0" data-area-name="" data-staff-name="" data-year="${yearVal}" data-month="${monthVal}" data-day="${day}" data-is-leader="1" data-leader-shift="${shift.key}" data-current-done="0" onclick="openEditScheduleModalFromCell(this)">✕</td>`
+                    ? `<td class="p-0.5 text-center border-r border-slate-100 text-red-500 font-bold cursor-pointer hover:bg-red-50" title="Klik untuk ubah" data-area-id="0" data-area-name="" data-staff-name="" data-year="${yearVal}" data-month="${monthVal}" data-day="${day}" data-is-leader="1" data-leader-shift="${shift.key}" data-current-done="0" onclick="toggleScheduleCell(this)">✕</td>`
                     : `<td class="p-0.5 text-center border-r border-slate-100 text-red-500 font-bold" title="Leader belum scan">✕</td>`;
             } else {
                 leaderCells += isAdmin
-                    ? `<td class="p-0.5 text-center border-r border-slate-100 text-slate-300 cursor-pointer hover:bg-slate-100" title="Admin: klik untuk edit" data-area-id="0" data-area-name="" data-staff-name="" data-year="${yearVal}" data-month="${monthVal}" data-day="${day}" data-is-leader="1" data-leader-shift="${shift.key}" data-current-done="0" onclick="openEditScheduleModalFromCell(this)">—</td>`
+                    ? `<td class="p-0.5 text-center border-r border-slate-100 text-slate-300 cursor-pointer hover:bg-slate-100" title="Klik untuk ubah" data-area-id="0" data-area-name="" data-staff-name="" data-year="${yearVal}" data-month="${monthVal}" data-day="${day}" data-is-leader="1" data-leader-shift="${shift.key}" data-current-done="0" onclick="toggleScheduleCell(this)">—</td>`
                     : `<td class="p-0.5 text-center border-r border-slate-100 text-slate-300">—</td>`;
             }
         }
