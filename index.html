@@ -307,6 +307,19 @@
         </div>
     </div>
 
+    <!-- Modal QR Leader (besar) -->
+    <div id="leaderQrModal" class="fixed inset-0 bg-slate-900/80 hidden z-50 flex items-center justify-center p-4 backdrop-blur-sm">
+        <div class="bg-white rounded-[2.5rem] max-w-sm w-full shadow-2xl p-6">
+            <div class="flex justify-between items-center mb-4">
+                <h3 class="text-lg font-black text-slate-800">QR Leader 5R</h3>
+                <button type="button" onclick="closeLeaderQrModal()" class="bg-slate-100 hover:bg-red-100 text-slate-400 hover:text-red-500 w-10 h-10 rounded-full flex items-center justify-center text-2xl transition-all">&times;</button>
+            </div>
+            <p id="leaderQrModalLabel" class="text-xs font-bold text-slate-500 mb-3"></p>
+            <div id="leaderQrModalBox" class="w-56 h-56 mx-auto rounded-3xl border-2 border-slate-200 bg-slate-50 flex items-center justify-center overflow-hidden">
+            </div>
+        </div>
+    </div>
+
     <!-- Modal Edit Ceklist (hanya admin) - JADWAL 5R -->
     <div id="editScheduleModal" class="fixed inset-0 bg-slate-900/80 hidden z-50 flex items-center justify-center p-4 backdrop-blur-sm">
         <div class="bg-white rounded-2xl max-w-sm w-full shadow-2xl p-6">
