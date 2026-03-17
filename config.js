@@ -25,7 +25,7 @@ const CONFIG_AREAS = [
     { id: 8, name: "Area I", staff: "M. YUSUF", shift: "MERAH" },
     { id: 9, name: "Area D", staff: "DIKDIK A", shift: "MERAH" },
     { id: 10, name: "Area E", staff: "AHMAD SOBIRIN", shift: "MERAH" },
-    { id: 11, name: "Area -", staff: "ALYA A", shift: "MERAH" },
-    { id: 12, name: "Area -", staff: "ASEP INDRA", shift: "MERAH" },
-    { id: 13, name: "Area -", staff: "PAJAR ARDIANTO", shift: "MERAH" }
+    { id: 11, name: "Area B", staff: "ALYA A", shift: "MERAH" },
+    { id: 12, name: "Area F", staff: "ASEP INDRA", shift: "MERAH" },
+    { id: 13, name: "Area G", staff: "PAJAR ARDIANTO", shift: "MERAH" }
 ];
