@@ -326,7 +326,7 @@ async function submitScanWithPhoto() {
                 area_id: 0,
                 area_name: 'Leader ' + (_pendingScan.leaderShift || ''),
                 staff_name: 'Leader 5R',
-                photo_url: null,
+                photo_url: 'LOCAL_ONLY',
                 scan_type: 'leader',
                 leader_shift: _pendingScan.leaderShift || null
             }
@@ -334,7 +334,7 @@ async function submitScanWithPhoto() {
                 area_id: id,
                 area_name: areaName,
                 staff_name: staffName,
-                photo_url: null,
+                photo_url: 'LOCAL_ONLY',
                 scan_type: 'pic'
             };
 
@@ -458,16 +458,16 @@ function renderUI() {
     // Update Tabel Log
     const tableBody = document.getElementById('activityTable');
     tableBody.innerHTML = monthlyHistory.map(log => {
-        const photoLink = log.photo_url ? `<a href="${escapeHtml(log.photo_url)}" target="_blank" rel="noopener" class="text-indigo-600 hover:underline text-[10px] font-black">📷 Foto</a>` : '';
-        const isDone = !!log.photo_url;
-        const statusLabel = isDone ? 'Sudah 5R' : 'Belum 5R';
-        const statusClass = isDone ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700';
+        const hasPhoto = !!log.photo_url;
+        const photoIcon = hasPhoto ? `<span class="ml-2 text-[12px]">📷</span>` : '';
+        const statusLabel = 'Sudah 5R';
+        const statusClass = 'bg-green-100 text-green-700';
         return `
         <tr class="hover:bg-slate-50 transition-colors">
             <td class="p-4 font-mono text-[11px] text-slate-500">${new Date(log.created_at).toLocaleString('id-ID')}</td>
             <td class="p-4 font-black text-slate-800 text-sm italic">${escapeHtml(log.staff_name)}</td>
             <td class="p-4 text-xs font-bold text-slate-500">${escapeHtml(log.area_name)}</td>
-            <td class="p-4"><span class="${statusClass} px-3 py-1 rounded-full text-[10px] font-black italic">${statusLabel}</span> ${photoLink}</td>
+            <td class="p-4"><span class="${statusClass} px-3 py-1 rounded-full text-[10px] font-black italic">${statusLabel}</span>${photoIcon}</td>
         </tr>
     `}).join('') || '<tr><td colspan="4" class="p-10 text-center text-slate-300 font-bold italic uppercase">Belum ada aktivitas hari ini</td></tr>';
 }
