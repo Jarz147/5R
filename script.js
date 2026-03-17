@@ -431,10 +431,6 @@ function renderUI() {
         card.innerHTML = `
             <div class="flex justify-between items-center mb-2">
                 <span class="text-[10px] font-black ${ls.accent} uppercase tracking-widest">${ls.name}</span>
-                <span class="flex items-center gap-1">
-                    <span class="text-[9px] font-black text-slate-500">QR Leader</span>
-                    <span id="leaderQr_${ls.key}" class="w-10 h-10 rounded-lg bg-white flex items-center justify-center border border-slate-200 overflow-hidden"></span>
-                </span>
                 ${
                     leaderTime && allDone
                         ? '<span class="text-green-600 text-[11px] font-black">● Sudah cek kinerja — ' + leaderTime + '</span>'
@@ -448,9 +444,13 @@ function renderUI() {
             <div class="space-y-0 text-[10px] mb-4">
                 ${areaList}
             </div>
-            <button onclick="openScanPhotoModal(0, 'Leader ${esc(ls.key)}', '${esc(getLeaderName(ls.key))}', 'leader', '${ls.key}')" class="w-full ${leaderTime ? 'bg-slate-200 text-slate-600' : 'bg-amber-500 hover:bg-amber-600 text-white'} text-[9px] font-black py-2 rounded-xl transition-all active:scale-95">
+            <button onclick="openScanPhotoModal(0, 'Leader ${esc(ls.key)}', '${esc(getLeaderName(ls.key))}', 'leader', '${ls.key}')" class="w-full ${leaderTime ? 'bg-slate-200 text-slate-600' : 'bg-amber-500 hover:bg-amber-600 text-white'} text-[9px] font-black py-2 rounded-xl transition-all active:scale-95 mb-3">
                 ${leaderTime ? 'Cek ulang sebagai Leader' : 'Cek sebagai Leader'}
             </button>
+            <div class="flex items-center justify-between mt-1">
+                <span class="text-[9px] font-black text-slate-500">QR Leader</span>
+                <span id="leaderQr_${ls.key}" class="w-10 h-10 rounded-lg bg-white flex items-center justify-center border border-slate-200 overflow-hidden"></span>
+            </div>
         `;
         grid.appendChild(card);
 
