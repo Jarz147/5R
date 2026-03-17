@@ -304,7 +304,7 @@ function closeScanPhotoModal() {
     document.getElementById('scanPhotoModal').classList.add('hidden');
 }
 
-/** Submit scan dengan foto: upload ke Storage lalu insert log */
+/** Submit scan dengan foto: hanya konfirmasi sudah foto, tanpa upload ke Storage */
 async function submitScanWithPhoto() {
     if (!_pendingScan) return;
     const input = document.getElementById('scanPhotoInput');
@@ -315,34 +315,32 @@ async function submitScanWithPhoto() {
     }
     const btn = document.getElementById('scanPhotoSubmitBtn');
     btn.disabled = true;
-    btn.textContent = 'Mengunggah...';
+    btn.textContent = 'Menyimpan...';
 
     try {
-        const compressedBlob = await compressImageToJpeg(file, 100);
-
         const { id, areaName, staffName } = _pendingScan;
-        // Path harus folder "public" dan ekstensi "jpg" sesuai policy Storage Supabase
-        const path = `public/${_pendingScan.scanType === 'leader' ? 'leader' : id}_${Date.now()}.jpg`;
-
-        const { error: uploadError } = await _supabase.storage.from(PIKET_STORAGE_BUCKET).upload(path, compressedBlob, { upsert: true });
-        if (uploadError) {
-            const detail = uploadError.message ? '\n' + uploadError.message : '';
-            alert('Gagal upload foto.\n\nBucket: "' + PIKET_STORAGE_BUCKET + '"\nPath: ' + path + '\n\nPastikan bucket ada di Supabase Storage dan policy INSERT untuk anon mengizinkan folder public/*.jpg.' + detail);
-            btn.disabled = false;
-            btn.textContent = 'Submit 5R';
-            return;
-        }
-        const { data: urlData } = _supabase.storage.from(PIKET_STORAGE_BUCKET).getPublicUrl(path);
-        const photoUrl = urlData.publicUrl;
-
         const isLeader = _pendingScan.scanType === 'leader';
+
         const payload = isLeader
-            ? { area_id: 0, area_name: 'Leader ' + (_pendingScan.leaderShift || ''), staff_name: 'Leader 5R', photo_url: photoUrl, scan_type: 'leader', leader_shift: _pendingScan.leaderShift || null }
-            : { area_id: id, area_name: areaName, staff_name: staffName, photo_url: photoUrl, scan_type: 'pic' };
+            ? {
+                area_id: 0,
+                area_name: 'Leader ' + (_pendingScan.leaderShift || ''),
+                staff_name: 'Leader 5R',
+                photo_url: null,
+                scan_type: 'leader',
+                leader_shift: _pendingScan.leaderShift || null
+            }
+            : {
+                area_id: id,
+                area_name: areaName,
+                staff_name: staffName,
+                photo_url: null,
+                scan_type: 'pic'
+            };
 
         const { error: insertError } = await _supabase.from('piket_logs').insert([payload]);
         if (insertError) {
-            alert('Gagal menyimpan log. Pastikan tabel piket_logs punya kolom: photo_url (text), scan_type (text), leader_shift (text, nullable).');
+            alert('Gagal menyimpan log. Pastikan tabel piket_logs punya kolom: photo_url (text, nullable), scan_type (text), leader_shift (text, nullable).');
             btn.disabled = false;
             btn.textContent = 'Submit 5R';
             return;
