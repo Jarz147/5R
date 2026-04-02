@@ -831,10 +831,11 @@ async function exportCSV() {
     var todayMonth = now.getMonth();
     var todayDay = now.getDate();
 
-    var header = ['Shift', 'Jenis', 'Area', 'PIC'];
+    // Struktur seperti tabel Jadwal 5R: metadata + kolom 1–31
+    var header = ['Shift', 'Baris', 'Nama (Plan / PIC / Leader)', 'Area/Zona'];
     for (var d = 1; d <= 31; d++) header.push(String(d));
     var csv = csvRow(header);
-    csv += csvRow(['Jadwal 5R', MONTH_NAMES[month] + ' ' + year, '', ''].concat(Array(31).fill('')));
+    csv += csvRow(['JADWAL 5R', '', MONTH_NAMES[month] + ' ' + year, ''].concat(Array(31).fill('')));
 
     var shiftList = [
         { name: 'SHIFT BIRU', key: 'BIRU' },
@@ -850,21 +851,22 @@ async function exportCSV() {
 
         members.forEach(function (area) {
             var letter = getAreaLetter(area.name);
-            var planCells = [shift.key, 'Plan', area.name, area.staff];
-            var actCells = [shift.key, 'Actual', area.name, area.staff];
+            // Sama seperti di layar: baris Plan dulu, lalu baris Actual (nama PIC + ✓/✕/—)
+            var planCells = [shift.key, 'Plan', 'Plan', area.name];
+            var actCells = [shift.key, 'Actual', area.staff, area.name];
             for (var day = 1; day <= 31; day++) {
                 var off = day > daysInMonth || isOffDay(year, month, day);
                 var isPast = year < todayYear || (year === todayYear && month < todayMonth) || (year === todayYear && month === todayMonth && day < todayDay);
                 if (off) {
                     planCells.push('');
-                    actCells.push('Libur');
+                    actCells.push('—');
                 } else {
                     planCells.push(letter);
                     var key = area.id + '_' + day;
                     var done = scheduleScanMap[key];
-                    if (done) actCells.push('Sudah');
-                    else if (isPast) actCells.push('Belum');
-                    else actCells.push('');
+                    if (done) actCells.push('✓');
+                    else if (isPast) actCells.push('✕');
+                    else actCells.push('—');
                 }
             }
             csv += csvRow(planCells);
@@ -872,16 +874,16 @@ async function exportCSV() {
         });
 
         var leaderName = getLeaderName(shift.key);
-        var leaderCells = [shift.key, 'Leader', 'Leader 5R', leaderName];
+        var leaderCells = [shift.key, 'Leader', leaderName, 'Leader 5R'];
         for (var day2 = 1; day2 <= 31; day2++) {
             var offL = day2 > daysInMonth || isOffDay(year, month, day2);
             var isPastL = year < todayYear || (year === todayYear && month < todayMonth) || (year === todayYear && month === todayMonth && day2 < todayDay);
-            if (offL) leaderCells.push('Libur');
+            if (offL) leaderCells.push('—');
             else {
                 var lk = shift.key + '_' + day2;
-                if (scheduleLeaderScanMap[lk]) leaderCells.push('Sudah');
-                else if (isPastL) leaderCells.push('Belum');
-                else leaderCells.push('');
+                if (scheduleLeaderScanMap[lk]) leaderCells.push('✓');
+                else if (isPastL) leaderCells.push('✕');
+                else leaderCells.push('—');
             }
         }
         csv += csvRow(leaderCells);
@@ -1033,19 +1035,21 @@ function renderScheduleDashboard() {
                 const isPast = (year < todayYear) ||
                                (year === todayYear && month < todayMonth) ||
                                (year === todayYear && month === todayMonth && day < todayDay);
+                const isToday = (year === todayYear && month === todayMonth && day === todayDay);
+                const todayRing = isToday ? 'ring-2 ring-emerald-400' : '';
                 if (off) {
-                    actualCells += `<td class="p-0.5 text-center border-r border-slate-100 bg-red-100 text-red-500 font-bold">—</td>`;
+                    actualCells += `<td class="p-0.5 text-center border-r border-slate-100 bg-red-100 text-red-500 font-bold ${todayRing}">—</td>`;
                 } else if (done) {
                     actualCells += isAdmin
-                        ? `<td class="p-0.5 text-center border-r border-slate-100 text-green-600 font-bold cursor-pointer hover:bg-green-100" title="Klik untuk ubah" data-area-id="${area.id}" data-area-name="${escapeHtml(area.name).replace(/"/g, '&quot;')}" data-staff-name="${escapeHtml(area.staff).replace(/"/g, '&quot;')}" data-year="${yearVal}" data-month="${monthVal}" data-day="${day}" data-is-leader="0" data-leader-shift="" data-current-done="1" onclick="toggleScheduleCell(this)">✓</td>`
-                        : `<td class="p-0.5 text-center border-r border-slate-100 text-green-600 font-bold" title="Sudah 5R">✓</td>`;
+                        ? `<td class="p-0.5 text-center border-r border-slate-100 text-green-600 font-bold cursor-pointer hover:bg-green-100 ${todayRing}" title="Klik untuk ubah" data-area-id="${area.id}" data-area-name="${escapeHtml(area.name).replace(/"/g, '&quot;')}" data-staff-name="${escapeHtml(area.staff).replace(/"/g, '&quot;')}" data-year="${yearVal}" data-month="${monthVal}" data-day="${day}" data-is-leader="0" data-leader-shift="" data-current-done="1" onclick="toggleScheduleCell(this)">✓</td>`
+                        : `<td class="p-0.5 text-center border-r border-slate-100 text-green-600 font-bold ${todayRing}" title="Sudah 5R">✓</td>`;
                 } else if (isPast) {
                     actualCells += isAdmin
-                        ? `<td class="p-0.5 text-center border-r border-slate-100 text-red-500 font-bold cursor-pointer hover:bg-red-50" title="Klik untuk ubah" data-area-id="${area.id}" data-area-name="${escapeHtml(area.name).replace(/"/g, '&quot;')}" data-staff-name="${escapeHtml(area.staff).replace(/"/g, '&quot;')}" data-year="${yearVal}" data-month="${monthVal}" data-day="${day}" data-is-leader="0" data-leader-shift="" data-current-done="0" onclick="toggleScheduleCell(this)">✕</td>`
-                        : `<td class="p-0.5 text-center border-r border-slate-100 text-red-500 font-bold" title="Belum 5R">✕</td>`;
+                        ? `<td class="p-0.5 text-center border-r border-slate-100 text-red-500 font-bold cursor-pointer hover:bg-red-50 ${todayRing}" title="Klik untuk ubah" data-area-id="${area.id}" data-area-name="${escapeHtml(area.name).replace(/"/g, '&quot;')}" data-staff-name="${escapeHtml(area.staff).replace(/"/g, '&quot;')}" data-year="${yearVal}" data-month="${monthVal}" data-day="${day}" data-is-leader="0" data-leader-shift="" data-current-done="0" onclick="toggleScheduleCell(this)">✕</td>`
+                        : `<td class="p-0.5 text-center border-r border-slate-100 text-red-500 font-bold ${todayRing}" title="Belum 5R">✕</td>`;
                 } else {
                     // Hari yang belum lewat (strip) tidak bisa diubah, hanya tampil strip saja
-                    actualCells += `<td class="p-0.5 text-center border-r border-slate-100 text-slate-300">—</td>`;
+                    actualCells += `<td class="p-0.5 text-center border-r border-slate-100 text-slate-300 ${todayRing}">—</td>`;
                 }
             }
             planRow.innerHTML = planCells;
@@ -1064,19 +1068,21 @@ function renderScheduleDashboard() {
             const isPast = (year < todayYear) ||
                            (year === todayYear && month < todayMonth) ||
                            (year === todayYear && month === todayMonth && day < todayDay);
+            const isToday = (year === todayYear && month === todayMonth && day === todayDay);
+            const todayRing = isToday ? 'ring-2 ring-emerald-400' : '';
             if (off) {
-                leaderCells += `<td class="p-0.5 text-center border-r border-slate-100 bg-red-100 text-red-500 font-bold">—</td>`;
+                leaderCells += `<td class="p-0.5 text-center border-r border-slate-100 bg-red-100 text-red-500 font-bold ${todayRing}">—</td>`;
             } else if (leaderDone) {
                 leaderCells += isAdmin
-                    ? `<td class="p-0.5 text-center border-r border-slate-100 text-green-600 font-bold cursor-pointer hover:bg-green-100" title="Klik untuk ubah" data-area-id="0" data-area-name="" data-staff-name="" data-year="${yearVal}" data-month="${monthVal}" data-day="${day}" data-is-leader="1" data-leader-shift="${shift.key}" data-current-done="1" onclick="toggleScheduleCell(this)">✓</td>`
-                    : `<td class="p-0.5 text-center border-r border-slate-100 text-green-600 font-bold" title="Leader sudah scan">✓</td>`;
+                    ? `<td class="p-0.5 text-center border-r border-slate-100 text-green-600 font-bold cursor-pointer hover:bg-green-100 ${todayRing}" title="Klik untuk ubah" data-area-id="0" data-area-name="" data-staff-name="" data-year="${yearVal}" data-month="${monthVal}" data-day="${day}" data-is-leader="1" data-leader-shift="${shift.key}" data-current-done="1" onclick="toggleScheduleCell(this)">✓</td>`
+                    : `<td class="p-0.5 text-center border-r border-slate-100 text-green-600 font-bold ${todayRing}" title="Leader sudah scan">✓</td>`;
             } else if (isPast) {
                 leaderCells += isAdmin
-                    ? `<td class="p-0.5 text-center border-r border-slate-100 text-red-500 font-bold cursor-pointer hover:bg-red-50" title="Klik untuk ubah" data-area-id="0" data-area-name="" data-staff-name="" data-year="${yearVal}" data-month="${monthVal}" data-day="${day}" data-is-leader="1" data-leader-shift="${shift.key}" data-current-done="0" onclick="toggleScheduleCell(this)">✕</td>`
-                    : `<td class="p-0.5 text-center border-r border-slate-100 text-red-500 font-bold" title="Leader belum scan">✕</td>`;
+                    ? `<td class="p-0.5 text-center border-r border-slate-100 text-red-500 font-bold cursor-pointer hover:bg-red-50 ${todayRing}" title="Klik untuk ubah" data-area-id="0" data-area-name="" data-staff-name="" data-year="${yearVal}" data-month="${monthVal}" data-day="${day}" data-is-leader="1" data-leader-shift="${shift.key}" data-current-done="0" onclick="toggleScheduleCell(this)">✕</td>`
+                    : `<td class="p-0.5 text-center border-r border-slate-100 text-red-500 font-bold ${todayRing}" title="Leader belum scan">✕</td>`;
             } else {
                 // Hari yang belum lewat (strip) tidak bisa diubah
-                leaderCells += `<td class="p-0.5 text-center border-r border-slate-100 text-slate-300">—</td>`;
+                leaderCells += `<td class="p-0.5 text-center border-r border-slate-100 text-slate-300 ${todayRing}">—</td>`;
             }
         }
         leaderRow.innerHTML = leaderCells;
