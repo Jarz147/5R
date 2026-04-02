@@ -417,7 +417,6 @@ function renderUI() {
         const leaderTime = dailyLeaderStatus[ls.key];
         const doneCount = membersInShift.filter(a => dailyStatus[a.id]).length;
         const totalCount = membersInShift.length;
-        const allDone = totalCount > 0 && doneCount === totalCount;
         const card = document.createElement('div');
         card.className = `bg-white p-5 rounded-[2rem] shadow-sm border-2 ${ls.border} ${ls.bg} transition-all duration-300`;
         const esc = (s) => String(s || '').replace(/\\/g, '\\\\').replace(/'/g, "\\'");
@@ -432,11 +431,9 @@ function renderUI() {
             <div class="flex justify-between items-center mb-2">
                 <span class="text-[10px] font-black ${ls.accent} uppercase tracking-widest">${ls.name}</span>
                 ${
-                    leaderTime && allDone
+                    leaderTime
                         ? '<span class="text-green-600 text-[11px] font-black">● Sudah cek kinerja — ' + leaderTime + '</span>'
-                        : leaderTime && !allDone
-                            ? '<span class="text-amber-500 text-[11px] font-black">● Sudah scan, area belum lengkap</span>'
-                            : '<span class="text-red-500 text-[11px] font-black animate-pulse">● Belum cek kinerja</span>'
+                        : '<span class="text-red-500 text-[11px] font-black animate-pulse">● Belum cek kinerja</span>'
                 }
             </div>
             <h3 class="font-black text-slate-800 text-sm uppercase mb-3">${escapeHtml(getLeaderName(ls.key))}</h3>
