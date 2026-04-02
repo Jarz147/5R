@@ -447,11 +447,23 @@ function renderUI() {
             <button onclick="openScanPhotoModal(0, 'Leader ${esc(ls.key)}', '${esc(getLeaderName(ls.key))}', 'leader', '${ls.key}')" class="w-full ${leaderTime ? 'bg-slate-200 text-slate-600' : 'bg-amber-500 hover:bg-amber-600 text-white'} text-[9px] font-black py-2 rounded-xl transition-all active:scale-95 mb-3">
                 ${leaderTime ? 'Cek ulang sebagai Leader' : 'Cek sebagai Leader'}
             </button>
-            <button type="button" onclick="openLeaderQR('${ls.key}')" class="w-full bg-white hover:bg-slate-50 text-slate-700 border border-slate-200 text-[9px] font-black py-2 rounded-xl transition-all active:scale-95 flex items-center justify-center gap-2">
-                <span>QR Code Leader</span>
+            <button type="button" onclick="openLeaderQrLargeModal('${ls.key}')" class="w-full bg-white hover:bg-slate-50 text-slate-700 border border-slate-200 text-[9px] font-black py-2 rounded-xl transition-all active:scale-95 flex items-center justify-center gap-2">
+                <span>Perbesar QR</span>
             </button>
+            <div class="mt-3 pt-3 border-t border-slate-200/80 flex flex-col items-center gap-2">
+                <p class="text-[9px] font-black text-slate-500 text-center uppercase tracking-wide">Scan QR untuk validasi Leader</p>
+                <div id="leaderQrInline_${ls.key}" class="w-[104px] h-[104px] rounded-2xl bg-white flex items-center justify-center border-2 border-slate-200 overflow-hidden shadow-inner"></div>
+            </div>
         `;
         grid.appendChild(card);
+        try {
+            const qrUrlLeader = getAppBaseUrl() + '?role=leader&shift=' + ls.key;
+            const ph = card.querySelector('#leaderQrInline_' + ls.key);
+            if (ph && window.QRCode) {
+                ph.innerHTML = '';
+                new QRCode(ph, { text: qrUrlLeader, width: 96, height: 96 });
+            }
+        } catch (_) {}
     });
 
     // Update Header Info
@@ -475,6 +487,13 @@ function renderUI() {
     `}).join('') || '<tr><td colspan="4" class="p-10 text-center text-slate-300 font-bold italic uppercase">Belum ada aktivitas hari ini</td></tr>';
 }
 
+/** URL dasar app untuk QR (konsisten untuk ?scan= & ?role=leader&shift=) */
+function getAppBaseUrl() {
+    var path = window.location.pathname || '/';
+    path = path.replace(/index\.html?$/i, '');
+    return window.location.origin + path;
+}
+
 /** Menu Generate Barcode / QR Code */
 function openQRModal() {
     const modal = document.getElementById('qrModal');
@@ -485,7 +504,7 @@ function openQRModal() {
     if (printArea) printArea.innerHTML = '';
     if (printAreaLeader) printAreaLeader.innerHTML = '';
 
-    const baseUrl = window.location.origin + window.location.pathname;
+    const baseUrl = getAppBaseUrl();
 
     areas.forEach(member => {
         const qrUrl = `${baseUrl}?scan=${member.id}`;
@@ -588,14 +607,13 @@ function openQRModal() {
     });
 }
 
-function openLeaderQR(shiftKey) {
+function openLeaderQrLargeModal(shiftKey) {
     try {
         const modal = document.getElementById('leaderQrModal');
         const box = document.getElementById('leaderQrModalBox');
         const label = document.getElementById('leaderQrModalLabel');
         if (!modal || !box) return;
-        const baseUrl = window.location.origin + window.location.pathname.replace(/index\.html?$/i, '');
-        const url = baseUrl + '?role=leader&shift=' + encodeURIComponent(shiftKey);
+        const url = getAppBaseUrl() + '?role=leader&shift=' + encodeURIComponent(shiftKey);
         box.innerHTML = '';
         if (window.QRCode) {
             new QRCode(box, { text: url, width: 220, height: 220 });
@@ -603,7 +621,7 @@ function openLeaderQR(shiftKey) {
             box.textContent = url;
         }
         if (label) {
-            label.textContent = 'Scan kode ini untuk Leader Shift ' + shiftKey;
+            label.textContent = 'Scan untuk Leader Shift ' + shiftKey + ' — setelah Submit, status di atas berubah otomatis.';
         }
         modal.classList.remove('hidden');
     } catch (_) {
@@ -614,16 +632,6 @@ function openLeaderQR(shiftKey) {
 function closeLeaderQrModal() {
     const modal = document.getElementById('leaderQrModal');
     if (modal) modal.classList.add('hidden');
-}
-
-function openLeaderQR(shiftKey) {
-    try {
-        const baseUrl = window.location.origin + window.location.pathname.replace(/index\.html?$/i, '');
-        const url = baseUrl + '?role=leader&shift=' + encodeURIComponent(shiftKey);
-        window.open(url, '_blank');
-    } catch (e) {
-        alert('Tidak bisa membuka QR Leader.');
-    }
 }
 
 function escapeHtml(s) {
@@ -1138,6 +1146,11 @@ document.addEventListener('DOMContentLoaded', () => {
     fetchData();
     checkAutoScan();
     setInterval(fetchData, 15000); // Auto-refresh setiap 15 detik
+    document.addEventListener('visibilitychange', function () {
+        if (!document.hidden && document.getElementById('viewMonitoring') && !document.getElementById('viewMonitoring').classList.contains('hidden')) {
+            fetchData();
+        }
+    });
 
     var btnKelola = document.getElementById('btnKelolaAkun');
     if (btnKelola) {
