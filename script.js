@@ -802,19 +802,99 @@ function setDailyStatusByAdmin(areaId, setDone) {
     promise.then(function() { fetchData(); });
 }
 
-/** Export ke CSV */
-function exportCSV() {
-    if (monthlyHistory.length === 0) return alert("Data kosong");
-    let csv = "Waktu,Nama,Area,Status\n";
-    monthlyHistory.forEach(log => {
-        csv += `${new Date(log.created_at).toLocaleString('id-ID')},${log.staff_name},${log.area_name},ACTUAL\n`;
+function csvEscapeCell(val) {
+    var s = val == null ? '' : String(val);
+    if (/[",\r\n]/.test(s)) return '"' + s.replace(/"/g, '""') + '"';
+    return s;
+}
+
+function csvRow(cells) {
+    return cells.map(csvEscapeCell).join(',') + '\r\n';
+}
+
+/** Export tabel JADWAL 5R (bulan terpilih di dashboard jadwal, atau bulan berjalan) ke CSV */
+async function exportCSV() {
+    var yearSel = document.getElementById('scheduleYear');
+    var monthSel = document.getElementById('scheduleMonth');
+    var year = parseInt(yearSel && yearSel.value ? yearSel.value : new Date().getFullYear(), 10);
+    var month = parseInt(monthSel && monthSel.value !== '' && monthSel.value != null ? monthSel.value : new Date().getMonth(), 10);
+    if (yearSel && !yearSel.options.length) {
+        year = new Date().getFullYear();
+        month = new Date().getMonth();
+    }
+
+    await fetchScheduleMonth();
+
+    var daysInMonth = new Date(year, month + 1, 0).getDate();
+    var now = new Date();
+    var todayYear = now.getFullYear();
+    var todayMonth = now.getMonth();
+    var todayDay = now.getDate();
+
+    var header = ['Shift', 'Jenis', 'Area', 'PIC'];
+    for (var d = 1; d <= 31; d++) header.push(String(d));
+    var csv = csvRow(header);
+    csv += csvRow(['Jadwal 5R', MONTH_NAMES[month] + ' ' + year, '', ''].concat(Array(31).fill('')));
+
+    var shiftList = [
+        { name: 'SHIFT BIRU', key: 'BIRU' },
+        { name: 'SHIFT HIJAU', key: 'HIJAU' },
+        { name: 'SHIFT MERAH / NON SHIFT', key: 'MERAH' }
+    ];
+
+    shiftList.forEach(function (shift) {
+        var members = areas.filter(function (a) { return a.shift === shift.key; });
+        if (!members.length) return;
+
+        csv += csvRow([shift.name, '', '', ''].concat(Array(31).fill('')));
+
+        members.forEach(function (area) {
+            var letter = getAreaLetter(area.name);
+            var planCells = [shift.key, 'Plan', area.name, area.staff];
+            var actCells = [shift.key, 'Actual', area.name, area.staff];
+            for (var day = 1; day <= 31; day++) {
+                var off = day > daysInMonth || isOffDay(year, month, day);
+                var isPast = year < todayYear || (year === todayYear && month < todayMonth) || (year === todayYear && month === todayMonth && day < todayDay);
+                if (off) {
+                    planCells.push('');
+                    actCells.push('Libur');
+                } else {
+                    planCells.push(letter);
+                    var key = area.id + '_' + day;
+                    var done = scheduleScanMap[key];
+                    if (done) actCells.push('Sudah');
+                    else if (isPast) actCells.push('Belum');
+                    else actCells.push('');
+                }
+            }
+            csv += csvRow(planCells);
+            csv += csvRow(actCells);
+        });
+
+        var leaderName = getLeaderName(shift.key);
+        var leaderCells = [shift.key, 'Leader', 'Leader 5R', leaderName];
+        for (var day2 = 1; day2 <= 31; day2++) {
+            var offL = day2 > daysInMonth || isOffDay(year, month, day2);
+            var isPastL = year < todayYear || (year === todayYear && month < todayMonth) || (year === todayYear && month === todayMonth && day2 < todayDay);
+            if (offL) leaderCells.push('Libur');
+            else {
+                var lk = shift.key + '_' + day2;
+                if (scheduleLeaderScanMap[lk]) leaderCells.push('Sudah');
+                else if (isPastL) leaderCells.push('Belum');
+                else leaderCells.push('');
+            }
+        }
+        csv += csvRow(leaderCells);
     });
-    const blob = new Blob([csv], { type: 'text/csv' });
-    const url = window.URL.createObjectURL(blob);
-    const a = document.createElement('a');
+
+    var blob = new Blob(['\ufeff' + csv], { type: 'text/csv;charset=utf-8' });
+    var url = window.URL.createObjectURL(blob);
+    var a = document.createElement('a');
     a.href = url;
-    a.download = `Rekap_5R_Maintenance_${new Date().getMonth()+1}.csv`;
+    var fn = 'Jadwal_5R_' + year + '_' + String(month + 1).padStart(2, '0') + '.csv';
+    a.download = fn;
     a.click();
+    window.URL.revokeObjectURL(url);
 }
 
 /** Deteksi Scan Otomatis dari URL Parameter (?scan=13 untuk PIC, ?role=leader&shift=BIRU untuk Leader) — buka modal foto */
