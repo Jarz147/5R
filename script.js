@@ -117,6 +117,26 @@ const PIKET_STORAGE_BUCKET = 'bukti_5r';
 
 /** Modal Konfirmasi 5R + Foto (wajib foto) */
 let _pendingScan = null; // { id, areaName, staffName, scanType: 'pic'|'leader', leaderShift: 'BIRU'|'HIJAU'|'MERAH' }
+let _scanAccess = null; // akses submit sementara dari hasil scan QR
+
+function setScanAccess(scanType, id, leaderShift) {
+    _scanAccess = {
+        scanType: scanType === 'leader' ? 'leader' : 'pic',
+        id: Number(id) || 0,
+        leaderShift: leaderShift || null
+    };
+}
+
+function clearScanAccess() {
+    _scanAccess = null;
+}
+
+function hasValidScanAccess(scanType, id, leaderShift) {
+    if (!_scanAccess) return false;
+    if (_scanAccess.scanType !== (scanType === 'leader' ? 'leader' : 'pic')) return false;
+    if (_scanAccess.scanType === 'leader') return _scanAccess.leaderShift === (leaderShift || null);
+    return _scanAccess.id === (Number(id) || 0);
+}
 
 /** Mapping PIC -> Shift dan daftar opsi dropdown berbasis data saat ini */
 function getPicShiftMap() {
@@ -264,8 +284,13 @@ function compressImageToJpeg(file, maxSizeKB) {
     });
 }
 
-function openScanPhotoModal(id, areaName, staffName, scanType, leaderShift) {
+function openScanPhotoModal(id, areaName, staffName, scanType, leaderShift, source) {
     scanType = scanType === 'leader' ? 'leader' : 'pic';
+    source = source || 'manual';
+    if (source !== 'qr' && !hasValidScanAccess(scanType, id, leaderShift)) {
+        alert('Silakan scan QR terlebih dahulu untuk membuka menu submit.');
+        return;
+    }
     _pendingScan = { id: id || 0, areaName: areaName || '', staffName: staffName || '', scanType, leaderShift: leaderShift || null };
     document.getElementById('scanPhotoAreaName').textContent = areaName || '-';
     document.getElementById('scanPhotoStaffName').textContent = staffName || '-';
@@ -301,6 +326,7 @@ function _onScanPhotoChange(e) {
 
 function closeScanPhotoModal() {
     _pendingScan = null;
+    clearScanAccess();
     document.getElementById('scanPhotoModal').classList.add('hidden');
 }
 
@@ -394,7 +420,7 @@ function renderUI() {
                 <p class="text-[10px] font-bold text-slate-400 mb-4 italic uppercase">${area.name}</p>
                 ${time 
                     ? `<div class="text-[10px] text-green-700 font-black bg-green-100 py-2 rounded-xl text-center italic tracking-wider">Sudah 5R</div>${adminEdit}`
-                    : `<button onclick="openScanPhotoModal(${area.id}, '${esc(area.name)}', '${esc(area.staff)}')" class="w-full bg-slate-800 hover:bg-black text-white text-[9px] font-black py-2.5 rounded-xl shadow-md transition-all active:scale-95">Belum 5R</button>${adminEdit}`
+                    : `<div class="w-full bg-slate-200 text-slate-600 text-[10px] font-black py-2.5 rounded-xl text-center italic tracking-wider">Belum 5R · Wajib Scan QR</div>${adminEdit}`
                 }
             `;
             grid.appendChild(card);
@@ -441,8 +467,8 @@ function renderUI() {
             <div class="space-y-0 text-[10px] mb-4">
                 ${areaList}
             </div>
-            <button onclick="openScanPhotoModal(0, 'Leader ${esc(ls.key)}', '${esc(getLeaderName(ls.key))}', 'leader', '${ls.key}')" class="w-full ${leaderTime ? 'bg-slate-200 text-slate-600' : 'bg-amber-500 hover:bg-amber-600 text-white'} text-[9px] font-black py-2 rounded-xl transition-all active:scale-95 mb-3">
-                ${leaderTime ? 'Cek ulang sebagai Leader' : 'Cek sebagai Leader'}
+            <button type="button" onclick="alert('Silakan scan QR Leader terlebih dahulu untuk submit cek Leader.')" class="w-full bg-slate-300 text-slate-600 text-[9px] font-black py-2 rounded-xl transition-all cursor-not-allowed mb-3">
+                Wajib Scan QR Leader
             </button>
             <button type="button" onclick="openLeaderQrLargeModal('${ls.key}')" class="w-full bg-white hover:bg-slate-50 text-slate-700 border border-slate-200 text-[9px] font-black py-2 rounded-xl transition-all active:scale-95 flex items-center justify-center gap-2">
                 <span>Perbesar QR</span>
@@ -907,14 +933,16 @@ function checkAutoScan() {
     const shiftParam = params.get('shift');
     if (role === 'leader' && (shiftParam === 'BIRU' || shiftParam === 'HIJAU' || shiftParam === 'MERAH')) {
         window.history.replaceState({}, document.title, window.location.pathname);
-        openScanPhotoModal(0, 'Leader ' + shiftParam, getLeaderName(shiftParam), 'leader', shiftParam);
+        setScanAccess('leader', 0, shiftParam);
+        openScanPhotoModal(0, 'Leader ' + shiftParam, getLeaderName(shiftParam), 'leader', shiftParam, 'qr');
         return;
     }
     if (idParam) {
         const area = areas.find(a => a.id == idParam);
         if (area) {
             window.history.replaceState({}, document.title, window.location.pathname);
-            openScanPhotoModal(area.id, area.name, area.staff, 'pic');
+            setScanAccess('pic', area.id, null);
+            openScanPhotoModal(area.id, area.name, area.staff, 'pic', null, 'qr');
         }
     }
 }
