@@ -4,8 +4,40 @@ const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZ
 
 const _supabase = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
+function createAreaBarcodeKey(name, shift, fallbackId) {
+    const baseName = (name || '').trim();
+    const baseShift = (shift || 'MERAH').trim().toUpperCase();
+    const normalizedName = baseName
+        .normalize('NFKD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, '-')
+        .replace(/^-+|-+$/g, '') || `area-${fallbackId}`;
+    return `area-${baseShift.toLowerCase()}-${normalizedName}`;
+}
+
+function normalizeAreaRecord(area, index) {
+    const baseId = Number(area && area.id) || index + 1;
+    const name = (area && area.name || '').trim() || `Area ${String.fromCharCode(64 + baseId)}`;
+    const staff = (area && area.staff || '').trim() || '-';
+    const shift = String(area && area.shift || 'MERAH').trim().toUpperCase() || 'MERAH';
+    const barcodeKey = area && (area.barcode_key || area.qr_key || area.barcodeKey || area.qrKey)
+        ? (area.barcode_key || area.qr_key || area.barcodeKey || area.qrKey)
+        : createAreaBarcodeKey(name, shift, baseId);
+
+    return {
+        ...area,
+        id: baseId,
+        name,
+        staff,
+        shift,
+        barcode_key: barcodeKey
+    };
+}
+
 // Data default (bisa diubah lewat menu Pengaturan)
-const DEFAULT_AREAS = [
+const CONFIG_AREAS_SOURCE = (typeof window !== 'undefined' && window.CONFIG_AREAS) || (typeof CONFIG_AREAS !== 'undefined' ? CONFIG_AREAS : null);
+const DEFAULT_AREAS = (Array.isArray(CONFIG_AREAS_SOURCE) ? CONFIG_AREAS_SOURCE : [
     { id: 1, name: "Area H", staff: "BUDI IRAWAN", shift: "BIRU" },
     { id: 2, name: "Area K", staff: "AZKIA RASYA", shift: "BIRU" },
     { id: 3, name: "Area J", staff: "IRWAN BAGUSTIAN", shift: "BIRU" },
@@ -19,7 +51,7 @@ const DEFAULT_AREAS = [
     { id: 11, name: "Area B", staff: "ALYA A", shift: "MERAH" },
     { id: 12, name: "Area F", staff: "ASEP INDRA", shift: "MERAH" },
     { id: 13, name: "Area G", staff: "PAJAR ARDIANTO", shift: "MERAH" }
-];
+]).map((a, i) => normalizeAreaRecord(a, i));
 
 const STORAGE_KEY = 'piket_areas';
 const STORAGE_KEY_LEADERS = 'piket_leader_names';
@@ -35,10 +67,10 @@ function loadAreasFromStorage() {
         if (raw) {
             const parsed = JSON.parse(raw);
             if (Array.isArray(parsed) && parsed.length > 0)
-                return parsed.map((a, i) => ({ ...a, id: i + 1 }));
+                return parsed.map((a, i) => normalizeAreaRecord(a, i));
         }
     } catch (_) {}
-    return JSON.parse(JSON.stringify(DEFAULT_AREAS));
+    return JSON.parse(JSON.stringify(DEFAULT_AREAS)).map((a, i) => normalizeAreaRecord(a, i));
 }
 
 function saveAreasToStorage() {
@@ -530,7 +562,8 @@ function openQRModal() {
     const baseUrl = getAppBaseUrl();
 
     areas.forEach(member => {
-        const qrUrl = `${baseUrl}?scan=${member.id}`;
+        const qrKey = member.barcode_key || member.qr_key || member.barcodeKey || member.qrKey || member.id;
+        const qrUrl = `${baseUrl}?scan=${encodeURIComponent(qrKey)}`;
 
         const qrCard = document.createElement('div');
         qrCard.className = "qr-card-print border-2 border-slate-100 p-4 rounded-3xl flex flex-col items-center text-center bg-white shadow-sm";
@@ -538,7 +571,7 @@ function openQRModal() {
             <div class="text-[9px] font-black text-slate-400 mb-2 uppercase tracking-widest">${member.shift}</div>
             <div class="qr-placeholder w-32 h-32 mb-3 flex items-center justify-center bg-slate-50 rounded-xl"></div>
             <div class="font-black text-slate-800 text-xs leading-tight mb-1 uppercase">${escapeHtml(member.name)}</div>
-            <div class="text-[9px] text-slate-500 font-bold italic font-mono">PIC: ${escapeHtml(member.staff)}</div>
+            <div class="text-[9px] text-slate-500 font-bold italic">Area tetap • tidak bergantung PIC</div>
         `;
         printArea.appendChild(qrCard);
 
@@ -712,19 +745,30 @@ function saveSettings() {
     const tbody = document.getElementById('settingsTableBody');
     const rows = tbody.querySelectorAll('tr');
     const newAreas = [];
+    const previousAreas = areas.slice();
     rows.forEach((row, i) => {
         const staff = (row.querySelector('.settings-staff') || {}).value || '';
         const name = (row.querySelector('.settings-name') || {}).value || '';
         const shift = (row.querySelector('.settings-shift') || {}).value || 'MERAH';
         if (staff.trim() || name.trim()) {
-            newAreas.push({ id: i + 1, name: name.trim() || '-', staff: staff.trim() || '-', shift });
+            const previousArea = previousAreas[i] || previousAreas.find(a => {
+                const prevName = (a.name || '').trim().toLowerCase();
+                const nextName = name.trim().toLowerCase();
+                const prevShift = (a.shift || '').trim().toUpperCase();
+                const nextShift = shift.trim().toUpperCase();
+                return prevName && nextName && prevName === nextName && prevShift === nextShift;
+            }) || null;
+            const barcodeKey = previousArea && (previousArea.barcode_key || previousArea.qr_key || previousArea.barcodeKey || previousArea.qrKey)
+                ? (previousArea.barcode_key || previousArea.qr_key || previousArea.barcodeKey || previousArea.qrKey)
+                : createAreaBarcodeKey(name.trim() || '-', shift, i + 1);
+            newAreas.push({ id: i + 1, name: name.trim() || '-', staff: staff.trim() || '-', shift, barcode_key: barcodeKey });
         }
     });
     if (newAreas.length === 0) {
         alert('Minimal satu baris dengan Nama PIC atau Nama Area.');
         return;
     }
-    areas = newAreas.map((a, i) => ({ ...a, id: i + 1 }));
+    areas = newAreas.map((a, i) => normalizeAreaRecord(a, i));
     saveAreasToStorage();
     var lb = document.getElementById('settingsLeaderBIRU');
     var lh = document.getElementById('settingsLeaderHIJAU');
@@ -938,7 +982,7 @@ function checkAutoScan() {
         return;
     }
     if (idParam) {
-        const area = areas.find(a => a.id == idParam);
+        const area = areas.find(a => String(a.barcode_key || a.qr_key || a.barcodeKey || a.qrKey || a.id) === String(idParam));
         if (area) {
             window.history.replaceState({}, document.title, window.location.pathname);
             setScanAccess('pic', area.id, null);
