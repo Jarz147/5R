@@ -1,6 +1,6 @@
 // 1. KONFIGURASI DATABASE SUPABASE
 const SUPABASE_URL = 'https://synhvvaolrjxdcbyozld.supabase.co';
-const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InN5bmh2dmFvbHJqeGRjYnlvemxkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Njk5Njg4NzEsImV4cCI6MjA4NTU0NDg3MX0.GSEfz8HVd4[...]
+const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InN5bmh2dmFvbHJqeGRjYnlvemxkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Njk5Njg4NzEsImV4cCI6MjA4NTU0NDg3MX0.GSEfz8HVd49uEWXd70taR6FUv243VrFJKn6KlsZW-aQ';
 
 const _supabase = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
@@ -25,8 +25,8 @@ const STORAGE_KEY = 'piket_areas';
 const STORAGE_KEY_LEADERS = 'piket_leader_names';
 const AUTH_STORAGE_KEY = 'piket_auth';
 const USERS_STORAGE_KEY = 'piket_users';
-const ADMIN_USERNAME = 'admin@5r.com';
-const ADMIN_PASSWORD = '5r@2024';
+const ADMIN_USERNAME = 'admin@5r.com'; // email admin Supabase
+const ADMIN_PASSWORD = '5r@2024'; // tidak digunakan lagi untuk login, hanya legacy
 let areas = loadAreasFromStorage();
 
 function loadAreasFromStorage() {
@@ -45,7 +45,7 @@ function saveAreasToStorage() {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(areas));
 }
 
-var leaderNames = {};
+var leaderNames = {}; // { BIRU: '', HIJAU: '', MERAH: '' }
 
 function loadLeaderNames() {
     try {
@@ -74,25 +74,27 @@ function getLeaderName(shiftKey) {
     return name || 'Leader 5R';
 }
 
+// Muat nama leader dari storage saat awal
 loadLeaderNames();
 
 let dailyStatus = {};
-let dailyLeaderStatus = {};
+let dailyLeaderStatus = {}; // key: 'BIRU'|'HIJAU'|'MERAH' -> time string (Leader sudah scan hari ini)
 let monthlyHistory = [];
-let scheduleMonthLogs = [];
-let scheduleScanMap = {};
-let scheduleLeaderScanMap = {};
+/** Log bulanan untuk dashboard jadwal (area_id -> set of day 1-31) */
+let scheduleMonthLogs = []; // { area_id, created_at }[]
+let scheduleScanMap = {};   // key: "areaId_day" -> true (scan PIC)
+let scheduleLeaderScanMap = {}; // key: "SHIFT_day" -> true (Leader scan per shift, e.g. "BIRU_15")
 
-// Track active blob URLs untuk cleanup
-let activeBlobUrls = [];
-
+/** Mengambil data dari Supabase */
 async function fetchData() {
     try {
         const now = new Date();
         const startOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate()).toISOString();
         const endOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59).toISOString();
 
+        // Ambil data hari ini (Actual)
         const { data: logsToday } = await _supabase.from('piket_logs').select('*').gte('created_at', startOfDay).lte('created_at', endOfDay);
+        // Ambil riwayat terbaru
         const { data: allLogs } = await _supabase.from('piket_logs').select('*').order('created_at', { ascending: false }).limit(50);
 
         dailyStatus = {};
@@ -113,8 +115,9 @@ async function fetchData() {
 
 const PIKET_STORAGE_BUCKET = 'bukti_5r';
 
-let _pendingScan = null;
-let _scanAccess = null;
+/** Modal Konfirmasi 5R + Foto (wajib foto) */
+let _pendingScan = null; // { id, areaName, staffName, scanType: 'pic'|'leader', leaderShift: 'BIRU'|'HIJAU'|'MERAH' }
+let _scanAccess = null; // akses submit sementara dari hasil scan QR
 
 function setScanAccess(scanType, id, leaderShift) {
     _scanAccess = {
@@ -135,6 +138,7 @@ function hasValidScanAccess(scanType, id, leaderShift) {
     return _scanAccess.id === (Number(id) || 0);
 }
 
+/** Mapping PIC -> Shift dan daftar opsi dropdown berbasis data saat ini */
 function getPicShiftMap() {
     const map = {};
     DEFAULT_AREAS.forEach(a => {
@@ -215,11 +219,11 @@ function onSettingsPicInputChange(inputEl) {
     }
 }
 
-// FIX 1: Kompresi gambar agresif untuk mobile
+/** Kompres gambar ke bawah maxSizeKB (default 100 KB) menggunakan canvas */
 function compressImageToJpeg(file, maxSizeKB) {
-    maxSizeKB = maxSizeKB || 50; // Dikurangi dari 100 ke 50 KB
+    maxSizeKB = maxSizeKB || 100;
     const maxSizeBytes = maxSizeKB * 1024;
-    const maxDimension = 768; // Dikurangi dari 1024 ke 768
+    const maxDimension = 1024; // batas lebar/tinggi agar file tidak terlalu besar
 
     return new Promise((resolve, reject) => {
         const reader = new FileReader();
@@ -250,30 +254,28 @@ function compressImageToJpeg(file, maxSizeKB) {
                 }
                 ctx.drawImage(img, 0, 0, width, height);
 
-                let quality = 0.7; // Mulai dari 0.7
+                let quality = 0.8;
 
-                canvas.toBlob(
-                    function (blob) {
-                        if (!blob) {
-                            reject(new Error('Gagal mengompres gambar'));
-                            return;
-                        }
-                        if (blob.size <= maxSizeBytes) {
-                            resolve(blob);
-                        } else {
-                            quality = 0.4;
-                            canvas.toBlob(
-                                function(blob2) {
-                                    resolve(blob2 || blob);
-                                },
-                                'image/jpeg',
-                                quality
-                            );
-                        }
-                    },
-                    'image/jpeg',
-                    quality
-                );
+                function tryCompress() {
+                    canvas.toBlob(
+                        function (blob) {
+                            if (!blob) {
+                                reject(new Error('Gagal mengompres gambar'));
+                                return;
+                            }
+                            if (blob.size <= maxSizeBytes || quality <= 0.3) {
+                                resolve(blob);
+                                return;
+                            }
+                            quality -= 0.1;
+                            tryCompress();
+                        },
+                        'image/jpeg',
+                        quality
+                    );
+                }
+
+                tryCompress();
             };
             img.onerror = () => reject(new Error('Gagal memuat gambar untuk kompresi'));
             img.src = reader.result;
@@ -313,7 +315,6 @@ function _onScanPhotoChange(e) {
         return;
     }
     const url = URL.createObjectURL(file);
-    activeBlobUrls.push(url); // Track untuk cleanup
     preview.innerHTML = '';
     const img = document.createElement('img');
     img.src = url;
@@ -327,19 +328,9 @@ function closeScanPhotoModal() {
     _pendingScan = null;
     clearScanAccess();
     document.getElementById('scanPhotoModal').classList.add('hidden');
-    cleanupBlobUrls();
 }
 
-// FIX 2: Cleanup blob URLs
-function cleanupBlobUrls() {
-    activeBlobUrls.forEach(url => {
-        try {
-            URL.revokeObjectURL(url);
-        } catch (_) {}
-    });
-    activeBlobUrls = [];
-}
-
+/** Submit scan dengan foto: hanya konfirmasi sudah foto, tanpa upload ke Storage */
 async function submitScanWithPhoto() {
     if (!_pendingScan) return;
     const input = document.getElementById('scanPhotoInput');
@@ -389,23 +380,27 @@ async function submitScanWithPhoto() {
     btn.textContent = 'Submit 5R';
 }
 
+/** Simpan kehadiran tanpa foto (dipanggil internal jika diperlukan) */
 async function handleScan(id, areaName, staffName) {
     const { error } = await _supabase.from('piket_logs').insert([{ area_id: id, area_name: areaName, staff_name: staffName }]);
     if (!error) fetchData();
     else alert("Gagal Input! Pastikan SQL Editor sudah di-Run.");
 }
 
+/** Merender tampilan Dashboard */
 function renderUI() {
     const grid = document.getElementById('picketGrid');
     grid.innerHTML = '';
     
     const shifts = ["BIRU", "HIJAU", "MERAH"];
     shifts.forEach(s => {
+        // Baris Judul Shift
         const shiftTitle = document.createElement('div');
         shiftTitle.className = "col-span-full font-black text-slate-400 text-xs mt-6 mb-1 tracking-[0.2em] uppercase flex items-center gap-2";
         shiftTitle.innerHTML = `<span class="h-px bg-slate-200 grow"></span> ${s === "MERAH" ? "SHIFT MERAH / NON SHIFT" : `SHIFT ${s}`} <span class="h-px bg-slate-200 grow"></span>`;
         grid.appendChild(shiftTitle);
 
+        // Card Member per Shift
         areas.filter(a => a.shift === s).forEach(area => {
             const time = dailyStatus[area.id];
             const card = document.createElement('div');
@@ -413,8 +408,8 @@ function renderUI() {
             const esc = (s) => String(s || '').replace(/\\/g, '\\\\').replace(/'/g, "\\'");
             const adminEdit = isCurrentUserAdmin()
                 ? (time
-                    ? `<div class="mt-2"><button type="button" onclick="setDailyStatusByAdmin(${area.id}, false)" class="text-[10px] text-slate-500 hover:text-red-600 underline">Tandai belum 5R</button></div>`
-                    : `<div class="mt-2"><button type="button" onclick="setDailyStatusByAdmin(${area.id}, true)" class="text-[10px] text-slate-500 hover:text-green-600 underline">Tandai sudah 5R</button></div>`)
+                    ? `<div class="mt-2"><button type="button" onclick="setDailyStatusByAdmin(${area.id}, false)" class="text-[10px] text-slate-500 hover:text-red-600 underline">Tandai belum 5R (admin)</button></div>`
+                    : `<div class="mt-2"><button type="button" onclick="setDailyStatusByAdmin(${area.id}, true)" class="text-[10px] text-slate-500 hover:text-green-600 underline">Tandai sudah 5R (admin)</button></div>`)
                 : '';
             card.innerHTML = `
                 <div class="flex justify-between items-center mb-1">
@@ -432,7 +427,7 @@ function renderUI() {
         });
     });
 
-    // FIX 3: Lazy-load QR untuk Leader
+    // Card Leader 5R (3 Leader: BIRU, HIJAU, MERAH) — status pengecekan per area yang dipimpin
     const leaderShifts = [
         { key: 'BIRU', name: 'SHIFT BIRU', bg: 'bg-blue-50', border: 'border-blue-200', accent: 'text-blue-700', dot: 'bg-blue-500' },
         { key: 'HIJAU', name: 'SHIFT HIJAU', bg: 'bg-green-50', border: 'border-green-200', accent: 'text-green-700', dot: 'bg-green-500' },
@@ -472,23 +467,33 @@ function renderUI() {
             <div class="space-y-0 text-[10px] mb-4">
                 ${areaList}
             </div>
-            <button type="button" onclick="alert('Silakan scan QR Leader terlebih dahulu untuk submit cek Leader.')" class="w-full bg-slate-300 text-slate-600 text-[9px] font-black py-2 rounded-xl">
+            <button type="button" onclick="alert('Silakan scan QR Leader terlebih dahulu untuk submit cek Leader.')" class="w-full bg-slate-300 text-slate-600 text-[9px] font-black py-2 rounded-xl transition-all cursor-not-allowed mb-3">
                 Wajib Scan QR Leader
             </button>
-            <button type="button" onclick="openLeaderQrLargeModal('${ls.key}')" class="w-full bg-white hover:bg-slate-50 text-slate-700 border border-slate-200 text-[9px] font-black py-2 rounded-xl mt-2">
+            <button type="button" onclick="openLeaderQrLargeModal('${ls.key}')" class="w-full bg-white hover:bg-slate-50 text-slate-700 border border-slate-200 text-[9px] font-black py-2 rounded-xl transition-all active:scale-95 flex items-center justify-center gap-2">
                 <span>Perbesar QR</span>
             </button>
             <div class="mt-3 pt-3 border-t border-slate-200/80 flex flex-col items-center gap-2">
                 <p class="text-[9px] font-black text-slate-500 text-center uppercase tracking-wide">Scan QR untuk validasi Leader</p>
-                <div id="leaderQrInline_${ls.key}" class="w-[104px] h-[104px] rounded-2xl bg-white flex items-center justify-center border-2 border-slate-200 overflow-hidden shadow-inner placeholder-qr" data-shift="${ls.key}"></div>
+                <div id="leaderQrInline_${ls.key}" class="w-[104px] h-[104px] rounded-2xl bg-white flex items-center justify-center border-2 border-slate-200 overflow-hidden shadow-inner"></div>
             </div>
         `;
         grid.appendChild(card);
+        try {
+            const qrUrlLeader = getAppBaseUrl() + '?role=leader&shift=' + ls.key;
+            const ph = card.querySelector('#leaderQrInline_' + ls.key);
+            if (ph && window.QRCode) {
+                ph.innerHTML = '';
+                new QRCode(ph, { text: qrUrlLeader, width: 96, height: 96 });
+            }
+        } catch (_) {}
     });
 
+    // Update Header Info
     document.getElementById('currentDate').innerText = new Date().toLocaleDateString('id-ID', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
     document.getElementById('overallProgress').innerText = `${Object.keys(dailyStatus).length}/${areas.length}`;
     
+    // Update Tabel Log
     const tableBody = document.getElementById('activityTable');
     tableBody.innerHTML = monthlyHistory.map(log => {
         const hasPhoto = !!log.photo_url;
@@ -503,52 +508,16 @@ function renderUI() {
             <td class="p-4"><span class="${statusClass} px-3 py-1 rounded-full text-[10px] font-black italic">${statusLabel}</span>${photoIcon}</td>
         </tr>
     `}).join('') || '<tr><td colspan="4" class="p-10 text-center text-slate-300 font-bold italic uppercase">Belum ada aktivitas hari ini</td></tr>';
-
-    lazyLoadQRCodes();
 }
 
-// FIX 3: Lazy-load QR dengan Intersection Observer
-function lazyLoadQRCodes() {
-    if (!('IntersectionObserver' in window)) {
-        document.querySelectorAll('.placeholder-qr').forEach(el => {
-            generateLeaderQR(el);
-        });
-        return;
-    }
-
-    const observer = new IntersectionObserver((entries) => {
-        entries.forEach(entry => {
-            if (entry.isIntersecting && entry.target.classList.contains('placeholder-qr')) {
-                generateLeaderQR(entry.target);
-                observer.unobserve(entry.target);
-            }
-        });
-    }, { rootMargin: '50px' });
-
-    document.querySelectorAll('.placeholder-qr').forEach(el => {
-        observer.observe(el);
-    });
-}
-
-function generateLeaderQR(element) {
-    const shift = element.getAttribute('data-shift');
-    if (!shift || element.innerHTML.trim()) return;
-    
-    try {
-        const qrUrlLeader = getAppBaseUrl() + '?role=leader&shift=' + shift;
-        if (window.QRCode) {
-            element.innerHTML = '';
-            new QRCode(element, { text: qrUrlLeader, width: 96, height: 96 });
-        }
-    } catch (_) {}
-}
-
+/** URL dasar app untuk QR (konsisten untuk ?scan= & ?role=leader&shift=) */
 function getAppBaseUrl() {
     var path = window.location.pathname || '/';
     path = path.replace(/index\.html?$/i, '');
     return window.location.origin + path;
 }
 
+/** Menu Generate Barcode / QR Code */
 function openQRModal() {
     const modal = document.getElementById('qrModal');
     const printArea = document.getElementById('qrPrintArea');
@@ -696,6 +665,7 @@ function escapeHtml(s) {
 
 function closeQRModal() { document.getElementById('qrModal').classList.add('hidden'); }
 
+/** Menu Pengaturan Nama & Zona */
 function openSettingsModal() {
     const tbody = document.getElementById('settingsTableBody');
     tbody.innerHTML = '';
@@ -724,8 +694,8 @@ function createSettingsRow(no, staff, name, shift) {
     const shiftOpts = ['BIRU', 'HIJAU', 'MERAH'].map(z => `<option value="${z}" ${effectiveShift === z ? 'selected' : ''}>${z}</option>`).join('');
     tr.innerHTML = `
         <td class="py-3 pr-2 text-sm font-bold text-slate-400">${no}</td>
-        <td class="py-2 pr-2"><input type="text" list="picOptionsList" class="settings-staff w-full px-3 py-2 border border-slate-200 rounded-lg text-sm font-bold" value="${currentStaff.replace(/"/g, '&quot;')}"></td>
-        <td class="py-2 pr-2"><input type="text" list="areaOptionsList" class="settings-name w-full px-3 py-2 border border-slate-200 rounded-lg text-sm font-bold" value="${currentArea.replace(/"/g, '&quot;')}"></td>
+        <td class="py-2 pr-2"><input type="text" list="picOptionsList" class="settings-staff w-full px-3 py-2 border border-slate-200 rounded-lg text-sm font-bold" value="${currentStaff.replace(/"/g, '&quot;')}" placeholder="Nama PIC" oninput="onSettingsPicInputChange(this)"></td>
+        <td class="py-2 pr-2"><input type="text" list="areaOptionsList" class="settings-name w-full px-3 py-2 border border-slate-200 rounded-lg text-sm font-bold" value="${currentArea.replace(/"/g, '&quot;')}" placeholder="Nama Area / Zona"></td>
         <td class="py-2 pr-2"><select class="settings-shift w-full px-3 py-2 border border-slate-200 rounded-lg text-sm font-bold">${shiftOpts}</select></td>
         <td class="py-2"><button type="button" onclick="this.closest('tr').remove()" class="text-red-500 hover:text-red-700 text-lg font-black leading-none" title="Hapus baris">&times;</button></td>
     `;
@@ -773,13 +743,15 @@ function resetSettingsToDefault() {
     saveAreasToStorage();
     leaderNames = { BIRU: '', HIJAU: '', MERAH: '' };
     saveLeaderNames();
-    openSettingsModal();
+    openSettingsModal(); // refresh table and leader inputs
     renderUI();
 }
 
 function closeSettingsModal() {
     document.getElementById('settingsModal').classList.add('hidden');
 }
+
+// --- Edit ceklist oleh admin (JADWAL 5R + Daily Monitoring) ---
 
 function toggleScheduleCell(el) {
     if (!el || !isCurrentUserAdmin()) return;
@@ -866,6 +838,7 @@ function csvRow(cells) {
     return cells.map(csvEscapeCell).join(',') + '\r\n';
 }
 
+/** Export tabel JADWAL 5R (bulan terpilih di dashboard jadwal, atau bulan berjalan) ke CSV */
 async function exportCSV() {
     var yearSel = document.getElementById('scheduleYear');
     var monthSel = document.getElementById('scheduleMonth');
@@ -884,6 +857,7 @@ async function exportCSV() {
     var todayMonth = now.getMonth();
     var todayDay = now.getDate();
 
+    // Struktur seperti tabel Jadwal 5R: metadata + kolom 1–31
     var header = ['Shift', 'Baris', 'Nama (Plan / PIC / Leader)', 'Area/Zona'];
     for (var d = 1; d <= 31; d++) header.push(String(d));
     var csv = csvRow(header);
@@ -903,6 +877,7 @@ async function exportCSV() {
 
         members.forEach(function (area) {
             var letter = getAreaLetter(area.name);
+            // Sama seperti di layar: baris Plan dulu, lalu baris Actual (nama PIC + ✓/✕/—)
             var planCells = [shift.key, 'Plan', 'Plan', area.name];
             var actCells = [shift.key, 'Actual', area.staff, area.name];
             for (var day = 1; day <= 31; day++) {
@@ -942,18 +917,15 @@ async function exportCSV() {
 
     var blob = new Blob(['\ufeff' + csv], { type: 'text/csv;charset=utf-8' });
     var url = window.URL.createObjectURL(blob);
-    activeBlobUrls.push(url);
     var a = document.createElement('a');
     a.href = url;
     var fn = 'Jadwal_5R_' + year + '_' + String(month + 1).padStart(2, '0') + '.csv';
     a.download = fn;
     a.click();
-    setTimeout(function() {
-        window.URL.revokeObjectURL(url);
-        activeBlobUrls = activeBlobUrls.filter(u => u !== url);
-    }, 100);
+    window.URL.revokeObjectURL(url);
 }
 
+/** Deteksi Scan Otomatis dari URL Parameter (?scan=13 untuk PIC, ?role=leader&shift=BIRU untuk Leader) — buka modal foto */
 function checkAutoScan() {
     const params = new URLSearchParams(window.location.search);
     const idParam = params.get('scan');
@@ -975,6 +947,7 @@ function checkAutoScan() {
     }
 }
 
+// --- DASHBOARD JADWAL 5R (template schedule) ---
 const MONTH_NAMES = ['Januari','Februari','Maret','April','Mei','Juni','Juli','Agustus','September','Oktober','November','Desember'];
 
 function showScheduleDashboard() {
@@ -1009,6 +982,7 @@ function showMonitoring() {
     document.getElementById('btnShowMonitoring').classList.add('hidden');
 }
 
+/** Ambil log satu bulan untuk dashboard */
 async function fetchScheduleMonth() {
     const year = parseInt(document.getElementById('scheduleYear')?.value || new Date().getFullYear(), 10);
     const month = parseInt(document.getElementById('scheduleMonth')?.value ?? new Date().getMonth(), 10);
@@ -1041,6 +1015,7 @@ function isOffDay(year, month, day) {
     return dow === 0 || dow === 6;
 }
 
+/** Ambil huruf area dari "Area H" -> "H", "Area -" -> "-" */
 function getAreaLetter(name) {
     if (!name) return '-';
     const m = String(name).match(/Area\s*([A-Z\-])/i) || String(name).match(/([A-Z])$/i);
@@ -1094,13 +1069,14 @@ function renderScheduleDashboard() {
                     actualCells += `<td class="p-0.5 text-center border-r border-slate-100 bg-red-100 text-red-500 font-bold ${todayRing}">—</td>`;
                 } else if (done) {
                     actualCells += isAdmin
-                        ? `<td class="p-0.5 text-center border-r border-slate-100 text-green-600 font-bold cursor-pointer hover:bg-green-100 ${todayRing}" title="Klik untuk ubah" data-area-id="${area.id}" data-area-name="${escapeHtml(area.name)}" data-staff-name="${escapeHtml(area.staff)}" data-year="${year}" data-month="${month}" data-day="${day}" data-is-leader="0" data-current-done="1" onclick="toggleScheduleCell(this)">✓</td>`
+                        ? `<td class="p-0.5 text-center border-r border-slate-100 text-green-600 font-bold cursor-pointer hover:bg-green-100 ${todayRing}" title="Klik untuk ubah" data-area-id="${area.id}" data-area-name="${escapeHtml(area.name).replace(/"/g, '&quot;')}" data-staff-name="${escapeHtml(area.staff).replace(/"/g, '&quot;')}" data-year="${yearVal}" data-month="${monthVal}" data-day="${day}" data-is-leader="0" data-leader-shift="" data-current-done="1" onclick="toggleScheduleCell(this)">✓</td>`
                         : `<td class="p-0.5 text-center border-r border-slate-100 text-green-600 font-bold ${todayRing}" title="Sudah 5R">✓</td>`;
                 } else if (isPast) {
                     actualCells += isAdmin
-                        ? `<td class="p-0.5 text-center border-r border-slate-100 text-red-500 font-bold cursor-pointer hover:bg-red-50 ${todayRing}" title="Klik untuk ubah" data-area-id="${area.id}" data-area-name="${escapeHtml(area.name)}" data-staff-name="${escapeHtml(area.staff)}" data-year="${year}" data-month="${month}" data-day="${day}" data-is-leader="0" data-current-done="0" onclick="toggleScheduleCell(this)">✕</td>`
+                        ? `<td class="p-0.5 text-center border-r border-slate-100 text-red-500 font-bold cursor-pointer hover:bg-red-50 ${todayRing}" title="Klik untuk ubah" data-area-id="${area.id}" data-area-name="${escapeHtml(area.name).replace(/"/g, '&quot;')}" data-staff-name="${escapeHtml(area.staff).replace(/"/g, '&quot;')}" data-year="${yearVal}" data-month="${monthVal}" data-day="${day}" data-is-leader="0" data-leader-shift="" data-current-done="0" onclick="toggleScheduleCell(this)">✕</td>`
                         : `<td class="p-0.5 text-center border-r border-slate-100 text-red-500 font-bold ${todayRing}" title="Belum 5R">✕</td>`;
                 } else {
+                    // Hari yang belum lewat (strip) tidak bisa diubah, hanya tampil strip saja
                     actualCells += `<td class="p-0.5 text-center border-r border-slate-100 text-slate-300 ${todayRing}">—</td>`;
                 }
             }
@@ -1109,6 +1085,7 @@ function renderScheduleDashboard() {
             tbody.appendChild(planRow);
             tbody.appendChild(actualRow);
         });
+        // Satu baris Leader 5R per shift (3 leader total)
         const leaderRow = document.createElement('tr');
         leaderRow.className = 'border-b border-slate-100 bg-amber-50/50';
         let leaderCells = `<td class="p-1 border-r border-slate-200 sticky left-0 bg-amber-50/70 font-bold text-amber-800 text-xs">${escapeHtml(getLeaderName(shift.key))}</td>`;
@@ -1125,13 +1102,14 @@ function renderScheduleDashboard() {
                 leaderCells += `<td class="p-0.5 text-center border-r border-slate-100 bg-red-100 text-red-500 font-bold ${todayRing}">—</td>`;
             } else if (leaderDone) {
                 leaderCells += isAdmin
-                    ? `<td class="p-0.5 text-center border-r border-slate-100 text-green-600 font-bold cursor-pointer hover:bg-green-100 ${todayRing}" title="Klik untuk ubah" data-area-id="0" data-area-name="Leader ${shift.key}" data-staff-name="Leader 5R" data-year="${year}" data-month="${month}" data-day="${day}" data-is-leader="1" data-leader-shift="${shift.key}" data-current-done="1" onclick="toggleScheduleCell(this)">✓</td>`
+                    ? `<td class="p-0.5 text-center border-r border-slate-100 text-green-600 font-bold cursor-pointer hover:bg-green-100 ${todayRing}" title="Klik untuk ubah" data-area-id="0" data-area-name="" data-staff-name="" data-year="${yearVal}" data-month="${monthVal}" data-day="${day}" data-is-leader="1" data-leader-shift="${shift.key}" data-current-done="1" onclick="toggleScheduleCell(this)">✓</td>`
                     : `<td class="p-0.5 text-center border-r border-slate-100 text-green-600 font-bold ${todayRing}" title="Leader sudah scan">✓</td>`;
             } else if (isPast) {
                 leaderCells += isAdmin
-                    ? `<td class="p-0.5 text-center border-r border-slate-100 text-red-500 font-bold cursor-pointer hover:bg-red-50 ${todayRing}" title="Klik untuk ubah" data-area-id="0" data-area-name="Leader ${shift.key}" data-staff-name="Leader 5R" data-year="${year}" data-month="${month}" data-day="${day}" data-is-leader="1" data-leader-shift="${shift.key}" data-current-done="0" onclick="toggleScheduleCell(this)">✕</td>`
+                    ? `<td class="p-0.5 text-center border-r border-slate-100 text-red-500 font-bold cursor-pointer hover:bg-red-50 ${todayRing}" title="Klik untuk ubah" data-area-id="0" data-area-name="" data-staff-name="" data-year="${yearVal}" data-month="${monthVal}" data-day="${day}" data-is-leader="1" data-leader-shift="${shift.key}" data-current-done="0" onclick="toggleScheduleCell(this)">✕</td>`
                     : `<td class="p-0.5 text-center border-r border-slate-100 text-red-500 font-bold ${todayRing}" title="Leader belum scan">✕</td>`;
             } else {
+                // Hari yang belum lewat (strip) tidak bisa diubah
                 leaderCells += `<td class="p-0.5 text-center border-r border-slate-100 text-slate-300 ${todayRing}">—</td>`;
             }
         }
@@ -1142,6 +1120,7 @@ function renderScheduleDashboard() {
     if (adminHint) adminHint.style.display = isCurrentUserAdmin() ? 'inline' : 'none';
 }
 
+// --- Kelola Akun (hanya admin) ---
 function getStoredUsers() {
     try {
         const raw = localStorage.getItem(USERS_STORAGE_KEY);
@@ -1200,7 +1179,7 @@ function renderAccountsTable() {
             <td class="py-3 pr-2 text-sm font-bold text-slate-400">${i + 1}</td>
             <td class="py-2 pr-2 font-bold text-slate-800">${displayUser}</td>
             <td class="py-2 pr-2 text-slate-500 text-sm">••••••••</td>
-            <td class="py-2"><button type="button" onclick="removeAccount(this.getAttribute('data-username'))" data-username="${safeUser}" class="text-red-500 hover:text-red-700 text-lg font-black leading-none">&times;</button></td>
+            <td class="py-2"><button type="button" onclick="removeAccount(this.getAttribute('data-username'))" data-username="${safeUser}" class="text-red-500 hover:text-red-700 text-lg font-black leading-none" title="Hapus akun">&times;</button></td>
         </tr>`;
     }).join('') || '<tr><td colspan="4" class="py-6 text-center text-slate-400 font-bold text-sm">Belum ada akun tambahan. Tambah melalui form di bawah.</td></tr>';
 }
@@ -1249,7 +1228,9 @@ function removeAccount(username) {
     renderAccountsTable();
 }
 
+// Jalankan sistem
 document.addEventListener('DOMContentLoaded', () => {
+    // Redirect ke halaman login bila belum login
     try {
         const raw = localStorage.getItem(AUTH_STORAGE_KEY);
         const parsed = raw ? JSON.parse(raw) : {};
@@ -1275,8 +1256,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     fetchData();
     checkAutoScan();
-    // FIX 4: Refresh interval diperpanjang dari 15s ke 30s untuk mobile
-    setInterval(fetchData, 30000);
+    setInterval(fetchData, 15000); // Auto-refresh setiap 15 detik
     document.addEventListener('visibilitychange', function () {
         if (!document.hidden && document.getElementById('viewMonitoring') && !document.getElementById('viewMonitoring').classList.contains('hidden')) {
             fetchData();
@@ -1287,15 +1267,11 @@ document.addEventListener('DOMContentLoaded', () => {
     if (btnKelola) {
         btnKelola.style.display = isCurrentUserAdmin() ? '' : 'none';
     }
-
-    // FIX 5: Cleanup saat unload
-    window.addEventListener('beforeunload', cleanupBlobUrls);
 });
 
 function handleLogout() {
     try {
         localStorage.removeItem(AUTH_STORAGE_KEY);
-        cleanupBlobUrls();
     } catch (_) {}
     window.location.href = 'login.html';
 }
